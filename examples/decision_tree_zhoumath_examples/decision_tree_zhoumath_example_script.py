@@ -39,12 +39,15 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # Train the decision tree
 max_depth = 3
 split_criterion = 'gain'
-tree_model = DecisionTreeZhoumath(split_criterion=split_criterion, max_depth=max_depth)
+search_method = 'dfs'
+tree_model = DecisionTreeZhoumath(split_criterion=split_criterion,
+                                  search_method=search_method,
+                                  max_depth=max_depth)
 tic = time.time()
 tree_model.fit(X_train, y_train)
 toc = time.time()
 gap = toc-tic
-print(f'The decision-tree-zhoumath model with max depth {max_depth} and split criterion {split_criterion} is bulit in {gap:.3f} seconds.')
+print(f'The decision-tree-zhoumath model is bulit in {gap:.3f} seconds.')
 
 # Predict and evaluate
 y_test_pred = tree_model.predict_proba(X_test).iloc[:, 1]

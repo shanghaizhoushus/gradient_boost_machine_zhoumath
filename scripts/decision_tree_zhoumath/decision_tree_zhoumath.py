@@ -19,14 +19,40 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # DecisionTree class
 class DecisionTreeZhoumath:
-    def __init__(self, max_depth=None):
+    def __init__(self, split_criterion, max_depth=None):
         """
         Initialize the decision tree.
         :param max_depth: Maximum depth of the tree.
+        :param split_criterion: Criterion for splitting ("gain" or "gain_ratio").
         """
         
+        valid_criteria = {"gain", "gain_ratio"}
+        
+        if split_criterion not in valid_criteria:
+            raise ValueError(f"Invalid split criterion: {split_criterion}. Choose from {valid_criteria}.")
+        
+        self.split_criterion = split_criterion
         self.max_depth = max_depth
         self.tree = None
+        
+    def calculate_intrinsic_value(self, left_labels, right_labels):
+        """
+        Calculate the intrinsic value for a given split.
+        :param left_labels: Labels in the left subset.
+        :param right_labels: Labels in the right subset.
+        :return: Intrinsic Value (IV).
+        """
+        total_count = len(left_labels) + len(right_labels)
+        prob_left = len(left_labels) / total_count
+        prob_right = len(right_labels) / total_count
+        intrinsic_value = 0.0
+    
+        if prob_left > 0:
+            intrinsic_value -= prob_left * np.log2(prob_left)
+        if prob_right > 0:
+            intrinsic_value -= prob_right * np.log2(prob_right)
+    
+        return intrinsic_value
 
     def calculate_entropy(self, labels):
         """
@@ -71,7 +97,7 @@ class DecisionTreeZhoumath:
         
         num_features = data.shape[1]
         base_entropy = self.calculate_entropy(labels)
-        best_info_gain = -1
+        best_metric = -1
         best_feature = None
         best_threshold = None
 
@@ -93,13 +119,24 @@ class DecisionTreeZhoumath:
                 ) + prob_right * self.calculate_entropy(right_labels)
                 info_gain = base_entropy - new_entropy
 
-                if info_gain > best_info_gain:
-                    best_info_gain = info_gain
+                if self.split_criterion == "gain_ratio":
+                    intrinsic_value = self.calculate_intrinsic_value(left_labels, right_labels)
+                    if intrinsic_value > 0:  # Avoid division by zero
+                        metric = info_gain / intrinsic_value
+                    else:
+                        metric = 0
+                elif self.split_criterion == "gain":
+                    metric = info_gain
+                else:
+                    raise ValueError(f"Unsupported split criterion: {self.split_criterion}")
+
+                if metric > best_metric:
+                    best_metric = metric
                     best_feature = feature_index
                     best_threshold = threshold
 
-        return best_feature, best_threshold, best_info_gain
-
+        return best_feature, best_threshold, best_metric
+    
     def build_tree(self, data, labels, depth=0):
         """
         Recursively build the decision tree.

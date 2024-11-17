@@ -41,16 +41,15 @@ pip install -r requirements.txt
 ├── scripts
 │   └── decision_tree_zhoumath
 │       └── decision_tree_zhoumath.py
-├── examples
-│   ├── cal_ranking_by_freq.py
-│   └── decision_tree_zhoumath_examples
-│       ├── decision_tree_zhoumath_example_script.py
-│       └── decision_tree_visualization.py
-└── __pycache__
+└── examples
+    ├── cal_ranking_by_freq.py
+    └── decision_tree_zhoumath_examples
+        ├── decision_tree_zhoumath_example_script.py
+        └── decision_tree_visualization.py
+
 ```
 
 ### Key Files
-- **`decision_tree.py`**: Contains helper functions such as entropy calculation and data splitting.
 - **`decision_tree_zhoumath.py`**: Implements the `DecisionTreeZhoumath` class for custom decision tree modeling.
 - **`examples/`**: Example scripts demonstrating usage of the decision tree model, including evaluation with ROC-AUC, data ranking, and visualization of decision boundaries.
 - **`decision_tree_visualization.py`**: A new script added in v0.1.1 for visualizing decision tree decision boundaries.

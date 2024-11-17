@@ -10,7 +10,7 @@ This project provides a basic implementation of a decision tree and tree based e
 - Performance evaluation using ROC-AUC metrics.
 - Utility functions for data ranking based on frequency bins.
 - **New in v0.1.1**:
-  - Improved tree pruning capabilities using entropy-gain and entropy-gain-ratio to enhence accurancy on test set and prevent overfitting.
+  - Improved tree generating with entropy-gain-ratio to enhence accurancy on test set and prevent overfitting.
   - Updated example scripts to demonstrate new features.
 - **New in v0.1.2**:
   - Added BFS (Breadth-First Search) functionality for building decision trees, allowing for more flexible and efficient tree construction.

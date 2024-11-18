@@ -10,7 +10,7 @@ This project provides a basic implementation of a decision tree and tree based e
 - Performance evaluation using ROC-AUC metrics.
 - Utility functions for data ranking based on frequency bins.
 - **New in v0.1.1**:
-  - Improved tree pruning capabilities using entropy-gain and entropy-gain-ratio to enhence accurancy on test set and prevent overfitting.
+  - Improved tree generating with entropy-gain-ratio to enhence accurancy on test set and prevent overfitting.
   - Updated example scripts to demonstrate new features.
 - **New in v0.1.2**:
   - Added BFS (Breadth-First Search) functionality for building decision trees, allowing for more flexible and efficient tree construction.
@@ -41,16 +41,15 @@ pip install -r requirements.txt
 ├── scripts
 │   └── decision_tree_zhoumath
 │       └── decision_tree_zhoumath.py
-├── examples
-│   ├── cal_ranking_by_freq.py
-│   └── decision_tree_zhoumath_examples
-│       ├── decision_tree_zhoumath_example_script.py
-│       └── decision_tree_visualization.py
-└── __pycache__
+└── examples
+    ├── cal_ranking_by_freq.py
+    └── decision_tree_zhoumath_examples
+        ├── decision_tree_zhoumath_example_script.py
+        └── decision_tree_visualization.py
+
 ```
 
 ### Key Files
-- **`decision_tree.py`**: Contains helper functions such as entropy calculation and data splitting.
 - **`decision_tree_zhoumath.py`**: Implements the `DecisionTreeZhoumath` class for custom decision tree modeling.
 - **`examples/`**: Example scripts demonstrating usage of the decision tree model, including evaluation with ROC-AUC, data ranking, and visualization of decision boundaries.
 - **`decision_tree_visualization.py`**: A new script added in v0.1.1 for visualizing decision tree decision boundaries.

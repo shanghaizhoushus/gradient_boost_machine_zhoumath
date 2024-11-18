@@ -14,6 +14,10 @@ This project provides a basic implementation of a decision tree and tree based e
   - Updated example scripts to demonstrate new features.
 - **New in v0.1.2**:
   - Added BFS (Breadth-First Search) functionality for building decision trees, allowing for more flexible and efficient tree construction.
+  
+- **New in v0.1.2**:
+  - Optimized dataset splitting using index slicing to minimize unnecessary data copies.
+  - Replaced recursive DFS implementation with an iterative stack-based approach to prevent stack overflow and enhance memory efficiency.
 
 
 ## Installation

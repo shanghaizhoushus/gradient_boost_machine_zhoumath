@@ -9,7 +9,7 @@ Created on Sun Nov 17 12:50:56 2024
 #import packages
 import numpy as np
 import pandas as pd
-from collections import Counter, deque
+from collections import deque
 import warnings
 
 
@@ -67,29 +67,10 @@ class DecisionTreeZhoumath:
         :param labels: Array of labels.
         :return: Entropy value.
         """
-        label_counts = Counter(labels)
-        entropy = 0.0
-
-        for label, count in label_counts.items():
-            prob = count / len(labels)
-            entropy -= prob * np.log2(prob) if prob > 0 else 0
-
+        probabilities = labels / np.sum(labels)
+        non_zero_probs = probabilities[probabilities > 0]
+        entropy = -np.sum(non_zero_probs * np.log2(non_zero_probs))
         return entropy
-
-    def split_dataset(self, data, labels, feature_index, threshold):
-        """
-        Split the dataset based on a feature and threshold.
-        :param data: Feature data.
-        :param labels: Labels.
-        :param feature_index: Feature index to split on.
-        :param threshold: Threshold value.
-        :return: Split data and labels.
-        """
-        left_mask = data[:, feature_index] <= threshold
-        right_mask = ~left_mask
-        left_data, left_labels = data[left_mask], labels[left_mask]
-        right_data, right_labels = data[right_mask], labels[right_mask]
-        return left_data, left_labels, right_data, right_labels
 
     def choose_best_split(self, data, labels):
         """
@@ -98,28 +79,27 @@ class DecisionTreeZhoumath:
         :param labels: Labels.
         :return: Best feature index, threshold, and information gain.
         """
-        num_features = data.shape[1]
+        num_samples, num_features = data.shape
         base_entropy = self.calculate_entropy(labels)
         best_metric = -1
         best_feature = None
         best_threshold = None
 
         for feature_index in range(num_features):
-            thresholds = np.unique(data[:, feature_index])
-
-            for threshold in thresholds:
-                left_data, left_labels, right_data, right_labels = self.split_dataset(
-                    data, labels, feature_index, threshold
-                )
-
-                if len(left_labels) == 0 or len(right_labels) == 0:
+            sorted_data = self.sorted_data[feature_index]
+            sorted_labels = self.sorted_labels[feature_index]
+            
+            for i in range(1, num_samples):
+                
+                if sorted_data[i] == sorted_data[i - 1]:
                     continue
-
+                
+                threshold = (sorted_data[i] + sorted_data[i - 1]) / 2
+                left_labels = sorted_labels[:i]
+                right_labels = sorted_labels[i:]
                 prob_left = len(left_labels) / len(labels)
                 prob_right = len(right_labels) / len(labels)
-                new_entropy = prob_left * self.calculate_entropy(
-                    left_labels
-                ) + prob_right * self.calculate_entropy(right_labels)
+                new_entropy = prob_left * self.calculate_entropy(left_labels) + prob_right * self.calculate_entropy(right_labels)
                 info_gain = base_entropy - new_entropy
 
                 if self.split_criterion == "gain_ratio":
@@ -153,10 +133,8 @@ class DecisionTreeZhoumath:
         if len(labels) == 0:
             return {"prob": [0.5, 0.5]}
         
-        label_counts = Counter(labels)
-        prob_0 = label_counts.get(0, 0) / len(labels)
-        prob_1 = label_counts.get(1, 0) / len(labels)
-        return {"prob": [prob_0, prob_1]}
+        mean = np.mean(labels)
+        return {"prob": [1 - mean, mean]}
     
     def _add_node_to_tree(self, tree, node_list, parent_index, child_direction, node):
         """
@@ -217,14 +195,24 @@ class DecisionTreeZhoumath:
             current_node = {"feature": best_feature, "threshold": best_threshold}
             node_index = len(node_list)
             self._add_node_to_tree(tree, node_list, parent_index, child_direction, current_node)
-    
-            left_data, left_labels, right_data, right_labels = self.split_dataset(data, labels, best_feature, best_threshold)
-            queue.append({"data": left_data, "labels": left_labels, "depth": depth + 1, "parent_index": node_index, "child_direction": "left"})
-            queue.append({"data": right_data, "labels": right_labels, "depth": depth + 1, "parent_index": node_index, "child_direction": "right"})
+            left_mask = data[:, best_feature] <= best_threshold
+            right_mask = ~left_mask
+            queue.append({"data": data[left_mask],
+                          "labels": labels[left_mask],
+                          "depth": depth + 1,
+                          "parent_index": node_index,
+                          "child_direction": "left"}
+                         )
+            queue.append({"data": data[right_mask],
+                          "labels": labels[right_mask],
+                          "depth": depth + 1,
+                          "parent_index": node_index,
+                          "child_direction": "right"}
+                         )
     
         return tree
     
-    def build_tree_dfs(self, data, labels, depth=0):
+    def build_tree_dfs(self, data, labels):
         """
         Recursively build the decision tree.
         :param data: Feature data.
@@ -232,25 +220,38 @@ class DecisionTreeZhoumath:
         :param depth: Current depth of the tree.
         :return: A decision tree dictionary.
         """
+        stack = [{"data": data, "labels": labels, "depth": 0}]
+        tree = {}
+    
+        while stack:
+            node = stack.pop()
+            data, labels, depth = node["data"], node["labels"], node["depth"]
+            
+            if len(set(labels)) == 1 or (self.max_depth is not None and depth >= self.max_depth):
+                leaf = self._get_prob_dic(labels)
+                tree.update(leaf)
+                continue
+    
+            best_feature, best_threshold, best_info_gain = self.choose_best_split(data, labels)
+            if best_feature is None or best_info_gain <= 0:
+                leaf = self._get_prob_dic(labels)
+                tree.update(leaf)
+                continue
+    
+            left_mask = data[:, best_feature] <= best_threshold
+            right_mask = ~left_mask
+            tree = {
+                "feature": best_feature,
+                "threshold": best_threshold,
+                "left": self.build_tree_dfs(data[left_mask],
+                                            labels[left_mask],
+                                            depth + 1),
+                "right": self.build_tree_dfs(data[right_mask],
+                                            labels[right_mask],
+                                             depth + 1)
+            }
+            return tree
 
-        if (self.max_depth is not None and depth >= self.max_depth) or len(data) == 0 or data.shape[1] == 0 or len(set(labels)) == 1:
-            return self._get_prob_dic(labels)
-
-        best_feature, best_threshold, best_info_gain = self.choose_best_split(data, labels)
-
-        if best_feature is None or best_info_gain <= 0:
-            return self._get_prob_dic(labels)
-
-        left_data, left_labels, right_data, right_labels = self.split_dataset(
-            data, labels, best_feature, best_threshold
-        )
-        tree = {
-            "feature": best_feature,
-            "threshold": best_threshold,
-            "left": self.build_tree_dfs(left_data, left_labels, depth + 1),
-            "right": self.build_tree_dfs(right_data, right_labels, depth + 1),
-        }
-        return tree
     
     def fit(self, data, labels):
         """
@@ -260,10 +261,14 @@ class DecisionTreeZhoumath:
         :param labels: Labels.
         """
         
+        self.sorted_indices = {i: np.argsort(data[:, i]) for i in range(data.shape[1])}
+        self.sorted_data = {i: data[self.sorted_indices[i], i] for i in range(data.shape[1])}
+        self.sorted_labels = {i: labels[self.sorted_indices[i]] for i in range(data.shape[1])}
+        
         if self.search_method == 'bfs':
             self.tree = self.build_tree_bfs(data, labels)
         elif self.search_method == 'dfs':
-            self.tree = self.build_tree_dfs(data, labels)
+            self.tree = self.build_tree_dfs_iterative(data, labels)
 
     def predict_proba_single(self, tree, sample):
         """

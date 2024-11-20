@@ -1,4 +1,4 @@
-# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.3)
+# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.4)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree based models in machine learning.
@@ -12,6 +12,7 @@ This project provides a basic implementation of a decision tree and tree based e
 - **New in v0.1.1**:
   - Improved tree generating with entropy-gain-ratio to enhence accurancy on test set and prevent overfitting.
   - Updated example scripts to demonstrate new features.
+  
 - **New in v0.1.2**:
   - Added BFS (Breadth-First Search) functionality for building decision trees, allowing for more flexible and efficient tree construction.
   
@@ -19,6 +20,10 @@ This project provides a basic implementation of a decision tree and tree based e
   - Optimized dataset splitting using index slicing to minimize unnecessary data copies.
   - Replaced recursive DFS implementation with an iterative stack-based approach to prevent stack overflow and enhance memory efficiency.
 
+- **New in v0.1.4**:
+  - Improved numerical stability by adding perturbations to feature values to handle duplicate thresholds.
+  - Enhanced entropy and intrinsic value calculation with safeguards against division by zero using small constant additions.
+  - Updated the prediction method to use more efficient tree traversal logic for batch processing.
 
 ## Installation
 ### Prerequisites
@@ -93,7 +98,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements.
 
 ## Version
-Current version: **0.1.2**
+Current version: **0.1.4**
 
 ## Author
 

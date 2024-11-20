@@ -1,4 +1,4 @@
-# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.4)
+# Gradient Boost Machine Zhoumath - Zhoushus (v0.1.4)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree based models in machine learning.

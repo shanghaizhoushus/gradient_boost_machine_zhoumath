@@ -38,6 +38,14 @@ The project requires Python 3.6 or higher. To install the necessary dependencies
 pip install -r requirements.txt
 ```
 
+You can clone the project from GitHub:
+
+```bash
+git clone https://github.com/shanghaizhoushus/gradient_boost_machine_zhoumath.git
+```
+
+or download the compressed document on GitHub.
+
 ### Dependencies
 - `scikit-learn`: For dataset loading and evaluation metrics.
 - `numpy`: For efficient numerical operations.

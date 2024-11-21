@@ -1,7 +1,7 @@
-# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.4)
+# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.5)
 
 ## Overview
-This project provides a basic implementation of a decision tree and tree based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree based models in machine learning.
+This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
 
 ### Features
 - Custom decision tree model implementation (`DecisionTreeZhoumath`).
@@ -10,7 +10,7 @@ This project provides a basic implementation of a decision tree and tree based e
 - Performance evaluation using ROC-AUC metrics.
 - Utility functions for data ranking based on frequency bins.
 - **New in v0.1.1**:
-  - Improved tree generating with entropy-gain-ratio to enhence accurancy on test set and prevent overfitting.
+  - Improved tree generation with entropy-gain-ratio to enhance accuracy on test sets and prevent overfitting.
   - Updated example scripts to demonstrate new features.
   
 - **New in v0.1.2**:
@@ -24,6 +24,11 @@ This project provides a basic implementation of a decision tree and tree based e
   - Improved numerical stability by adding perturbations to feature values to handle duplicate thresholds.
   - Enhanced entropy and intrinsic value calculation with safeguards against division by zero using small constant additions.
   - Updated the prediction method to use more efficient tree traversal logic for batch processing.
+
+- **New in v0.1.5**:
+  - Integrated Numba JIT compilation to speed up key operations such as entropy calculation and threshold selection.
+  - Optimized memory usage by ensuring contiguous arrays are used where necessary.
+  - Improved tree traversal efficiency during predictions by reducing redundant calculations.
 
 ## Installation
 ### Prerequisites
@@ -39,6 +44,8 @@ pip install -r requirements.txt
 - `pandas`: For data handling and manipulation.
 - **New in v0.1.1**:
   - `matplotlib`: For enhanced data visualization of decision boundaries.
+- **New in v0.1.5**:
+  - `numba`: To accelerate numerical computations for improved performance.
 
 ## File Structure
 ```
@@ -55,13 +62,12 @@ pip install -r requirements.txt
     └── decision_tree_zhoumath_examples
         ├── decision_tree_zhoumath_example_script.py
         └── decision_tree_visualization.py
-
 ```
 
 ### Key Files
 - **`decision_tree_zhoumath.py`**: Implements the `DecisionTreeZhoumath` class for custom decision tree modeling.
 - **`examples/`**: Example scripts demonstrating usage of the decision tree model, including evaluation with ROC-AUC, data ranking, and visualization of decision boundaries.
-- **`decision_tree_visualization.py`**: A new script added in v0.1.1 for visualizing decision tree decision boundaries.
+- **`decision_tree_visualization.py`**: A script for visualizing decision tree decision boundaries.
 
 ## Usage
 ### Example: Training and Evaluating the Decision Tree
@@ -98,7 +104,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements.
 
 ## Version
-Current version: **0.1.4**
+Current version: **0.1.5**
 
 ## Author
 
@@ -109,3 +115,4 @@ Current version: **0.1.4**
 ## Acknowledgements
 - `scikit-learn` for providing easy access to datasets and evaluation tools.
 - The open-source community for ongoing inspiration and support.
+

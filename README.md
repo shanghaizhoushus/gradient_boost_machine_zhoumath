@@ -82,14 +82,6 @@ This script demonstrates how to:
 3. Train the custom decision tree model (`DecisionTreeZhoumath`).
 4. Evaluate the model using metrics such as ROC-AUC.
 
-### Example: Visualizing Decision Boundaries
-The `decision_tree_visualization.py` script provides an example of how to visualize the decision boundaries of the trained model:
-
-```sh
-python examples/decision_tree_zhoumath_examples/decision_tree_visualization.py
-```
-This visualization can help in understanding how the decision tree splits the feature space.
-
 ### Example: Calculating Frequency Bins
 The `cal_ranking_by_freq.py` script provides an example of how to calculate model score ranking using frequency-based bins. This is useful for understanding the distribution of predictions and assessing model calibration.
 

@@ -58,7 +58,7 @@ X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.
 # Train the decision tree
 max_depth = 3
 split_criterion = 'gain'
-search_method = 'bfs'
+search_method = 'dfs'
 tree_model = DecisionTreeZhoumath(split_criterion=split_criterion,
                                   search_method=search_method,
                                   max_depth=max_depth)

@@ -1,4 +1,4 @@
-# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.5)
+# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.6)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -29,6 +29,11 @@ This project provides a basic implementation of a decision tree and tree-based e
   - Integrated Numba JIT compilation to speed up key operations such as entropy calculation and threshold selection.
   - Optimized memory usage by ensuring contiguous arrays are used where necessary.
   - Improved tree traversal efficiency during predictions by reducing redundant calculations.
+
+- **New in v0.1.6**:
+  - Enhanced decision tree construction logic by refining BFS and DFS methods for better depth control and efficiency.
+  - Improved feature perturbation logic to ensure better handling of data with low variance.
+  - Added more detailed comments to code for easier readability and maintenance.
 
 ## Installation
 ### Prerequisites
@@ -69,7 +74,6 @@ or download the compressed document on GitHub.
     ├── cal_ranking_by_freq.py
     └── decision_tree_zhoumath_examples
         ├── decision_tree_zhoumath_example_script.py
-        └── decision_tree_visualization.py
 ```
 
 ### Key Files
@@ -104,7 +108,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements.
 
 ## Version
-Current version: **0.1.5**
+Current version: **0.1.6**
 
 ## Author
 
@@ -115,4 +119,3 @@ Current version: **0.1.5**
 ## Acknowledgements
 - `scikit-learn` for providing easy access to datasets and evaluation tools.
 - The open-source community for ongoing inspiration and support.
-

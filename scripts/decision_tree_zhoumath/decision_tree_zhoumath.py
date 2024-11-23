@@ -10,7 +10,7 @@ Created on Wed Nov 20 09:09:39 2024
 import warnings
 import numpy as np
 from collections import deque
-from numba import njit, typed
+from numba import njit
 
 # Setting
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -43,7 +43,7 @@ class DecisionTreeZhoumath:
         self.tree = None
     
     
-    def fit(self, data, labels, random_state=8964):
+    def fit(self, data, labels, random_state=20221126):
         """
         Train the decision tree.
         :param data: Feature data.
@@ -51,10 +51,10 @@ class DecisionTreeZhoumath:
         """
         data = np.ascontiguousarray(data)
         data = DecisionTreeZhoumath._get_perturbated_data(data, random_state)
-        labels = np.ascontiguousarray(labels)
+        labels = np.ascontiguousarray(labels.astype(np.int32))
         self.data = data
         self.labels = labels
-        self.tree = self.build_tree()
+        self.tree = self.build_tree(random_state)
     
     
     @staticmethod
@@ -67,42 +67,38 @@ class DecisionTreeZhoumath:
         :return: Perturbated data.
         """
         np.random.seed(random_state)
-        perturbation = np.random.uniform(-1, 1, size=data.shape) * 1e-9
+        perturbation = np.random.uniform(-1, 1, size=data.shape) * 1e-7
         data = data + perturbation
-        data = np.ascontiguousarray(data)
         return data
     
     
-    def build_tree(self):
+    def build_tree(self, random_state):
         """
         Recursively build the decision tree.
         :return: A decision tree dictionary.
         """
         
         if self.search_method == 'dfs':
-            collection = [{"depth": 0, "row_indices": np.arange(self.labels.shape[0]), "parent_sorted_indices": np.ascontiguousarray(np.argsort(self.data, axis=0))}]
-            #collection = [{"depth": 0, "row_indices": np.arange(self.labels.shape[0]), "parent_sorted_indices": np.ascontiguousarray(self._get_root_sorted_indices())}]
+            collection = [{"depth": 0, "row_indices": np.arange(self.labels.shape[0]),
+                           "parent_sorted_indices": np.argsort(self.data, axis=0)}]
+            popmethod = collection.pop
         
         if self.search_method == 'bfs':
             collection = deque([{"depth": 0, "row_indices": np.arange(self.labels.shape[0]), "parent_sorted_indices": np.ascontiguousarray(np.argsort(self.data, axis=0))}])
-        
+            popmethod = collection.popleft
+            
         tree = []
         
         while collection:
             
-            if self.search_method == 'dfs':
-                node = collection.pop()
-            
-            if self.search_method == 'bfs':
-                node = collection.popleft()
-            
+            node = popmethod()
             node_index = len(tree)
             depth, row_indices, parent_sorted_indices = node["depth"], node["row_indices"], node["parent_sorted_indices"]
             labels = np.ascontiguousarray(self.labels[row_indices])
             parent_index = node.get("parent_index", None)
             child_direction = node.get("child_direction", None)
             
-            if (self.max_depth is not None and depth >= self.max_depth) or (np.mean(labels) == 1 or np.mean(labels) == 0) or labels.shape[0] == 1:
+            if (self.max_depth is not None and depth >= self.max_depth) or np.unique(labels).size == 1:
                 probs = DecisionTreeZhoumath._get_probs(labels)
                 leaf = {"prob": probs}
                 DecisionTreeZhoumath._add_node_to_tree(tree, parent_index, node_index,
@@ -127,29 +123,6 @@ class DecisionTreeZhoumath:
                                "parent_index": node_index,"child_direction": "left"})
         
         return tree
-    
-    
-    '''
-    def _get_root_sorted_indices(self):
-        data = self.data
-        root_sorted_indices = np.zeros_like(data, dtype=np.int32)
-        
-        for i in range(data.shape[1]):
-            arr_to_argsort = np.ascontiguousarray(data[:, i])
-            root_sorted_indices[:, i] = DecisionTreeZhoumath._argsort(arr_to_argsort).astype(np.int32)
-            
-        return root_sorted_indices
-    
-    
-    @staticmethod
-    @njit
-    def _argsort(arr):
-        arr_sorted = np.sort(arr)
-        arr_rank = np.searchsorted(arr_sorted, arr)
-        arr_argsorted = np.zeros(arr_rank.shape, dtype = np.int32)
-        arr_argsorted[arr_rank] = np.arange(arr.shape[0])
-        return arr_argsorted
-    '''
     
     
     @staticmethod
@@ -195,41 +168,30 @@ class DecisionTreeZhoumath:
         best_index = 0
         best_metric = 0
         best_threshold = None
-        num_features = self.data.shape[1]
-        
+         
         if depth == 0:
-            filter_sorted_indices = parent_sorted_indices
-            
+            filter_sorted_indices = parent_sorted_indices     
         else:
             filter_sorted_indices = DecisionTreeZhoumath._get_filter_sorted_indices(row_indices, parent_sorted_indices)
             
         selected_labels = np.ascontiguousarray(self.labels[row_indices])
         base_entropy, left_labels_cumcount, left_prob, right_labels_cumcount, right_prob = DecisionTreeZhoumath._get_base_entropy_cumcount_prob(selected_labels)
         
+        filter_sorted_labels = np.ascontiguousarray(self.labels[filter_sorted_indices])
+        metrices = DecisionTreeZhoumath._calculate_metrices(filter_sorted_labels, left_labels_cumcount,
+                                                            right_labels_cumcount, left_prob,
+                                                            right_prob, base_entropy)
+        
         if self.split_criterion == 'gain_ratio':
             intrinsic_value = DecisionTreeZhoumath._calculate_intrinsic_value(left_prob, right_prob)
-        
-        for feature_index in range(num_features):
-            sorted_indices = filter_sorted_indices[:,feature_index]
-            sorted_data = np.ascontiguousarray(self.data[sorted_indices, feature_index])
-            sorted_labels = np.ascontiguousarray(self.labels[sorted_indices])
-            thresholds, metrices = DecisionTreeZhoumath._calculate_thresholds_metrices(sorted_data, sorted_labels,
-                                                                                       left_labels_cumcount, right_labels_cumcount,
-                                                                                       left_prob, right_prob,
-                                                                                       base_entropy)
-            
-            if self.split_criterion == 'gain_ratio':
-                metrices = metrices / intrinsic_value
-        	
-            metrices_max = metrices.max()
-        	
-            if metrices_max > 0 and metrices_max > best_metric:
-                best_metric = metrices_max
-                best_feature = feature_index
-                best_index = metrices.argmax()
-                best_threshold = thresholds[best_index]
-        
+            metrices = metrices / intrinsic_value
+    
+        best_metric = np.max(metrices)
+        best_index, best_feature = np.unravel_index(metrices.argmax(), metrices.shape)
         left_indices, right_indices = DecisionTreeZhoumath._get_left_indices_right_indices(filter_sorted_indices, best_index, best_feature)
+        sorted_best_feature_data = self.data[:, best_feature][filter_sorted_indices[:, best_feature]]
+        sorted_best_feature_data = np.ascontiguousarray(sorted_best_feature_data)
+        best_threshold = (sorted_best_feature_data[best_index] + sorted_best_feature_data[best_index+1]) / 2
         return best_feature, best_threshold, best_metric, left_indices, right_indices, filter_sorted_indices
     
     
@@ -241,35 +203,15 @@ class DecisionTreeZhoumath:
         :param parent_sorted_indices: Sorted indices of the parent node.
         :return: Sorted indices for all features.
         """
-        sorted_indices_flattened = np.ascontiguousarray(parent_sorted_indices.T.reshape(-1))
+        parent_sorted_indices_t = parent_sorted_indices.T
+        parent_sorted_indices_t = np.ascontiguousarray(parent_sorted_indices_t)
+        sorted_indices_flattened = parent_sorted_indices_t.reshape(-1)
         filter_sorted_indices_flattened = sorted_indices_flattened[np.in1d(sorted_indices_flattened, row_indices)]
-        filter_sorted_indices = np.ascontiguousarray(filter_sorted_indices_flattened).reshape((parent_sorted_indices.shape[1],-1)).T
+        filter_sorted_indices_flattened = np.ascontiguousarray(filter_sorted_indices_flattened)
+        filter_sorted_indices_t = filter_sorted_indices_flattened.reshape((parent_sorted_indices.shape[1],-1))
+        filter_sorted_indices = filter_sorted_indices_t.T
+        filter_sorted_indices = np.ascontiguousarray(filter_sorted_indices)
         return filter_sorted_indices
-    
-    
-    
-    '''
-    @staticmethod
-    @njit
-    def _get_filter_sorted_indices(sorted_indices, row_indices):
-        row_indices = np.ascontiguousarray(row_indices)
-        row_indices_expanded = row_indices.reshape(-1,1,1)
-        sorted_indices = np.ascontiguousarray(sorted_indices)
-        sorted_indices_expaned = sorted_indices.reshape(1,sorted_indices.shape[0],sorted_indices.shape[1])
-        ones = np.ones((1,sorted_indices.shape[0],sorted_indices.shape[1]))
-        possible_values = row_indices_expanded * ones
-        existence = np.sum((sorted_indices_expaned == possible_values), axis = 0).T
-        existence = np.ascontiguousarray(existence)
-        existence_flatten = existence.reshape(-1)
-        valid_indices = np.where(existence_flatten > 0)[0]
-        sorted_indices_transposed = sorted_indices.T
-        sorted_indices_transposed = np.ascontiguousarray(sorted_indices_transposed)
-        sorted_indices_flatten = sorted_indices_transposed.reshape(-1)
-        filtered_sorted_indices_flatten = sorted_indices_flatten[valid_indices]
-        filtered_sorted_indices_flatten = np.ascontiguousarray(filtered_sorted_indices_flatten)
-        filtered_sorted_indices = filtered_sorted_indices_flatten.reshape(-1,row_indices.shape[0]).T
-        return filtered_sorted_indices
-    '''
     
     
     @staticmethod
@@ -292,7 +234,7 @@ class DecisionTreeZhoumath:
     
     @staticmethod
     @njit
-    def _calculate_thresholds_metrices(sorted_data, sorted_labels, left_labels_cumcount, right_labels_cumcount, left_prob, right_prob, base_entropy):
+    def _calculate_metrices(filter_sorted_labels, left_labels_cumcount, right_labels_cumcount, left_prob, right_prob, base_entropy):
         """
         Calculate information gain for potential split thresholds.
         :param sorted_data: Sorted feature data.
@@ -304,20 +246,27 @@ class DecisionTreeZhoumath:
         :param base_entropy: Base entropy before the split.
         :return: Thresholds and information gain for each threshold.
         """
-        thresholds = (sorted_data[:-1] + sorted_data[1:]) / 2
-        left_sorted_labels_cumsum = np.cumsum(sorted_labels)[:-1]
-        left_sorted_labels_mean = left_sorted_labels_cumsum / left_labels_cumcount
-        right_sorted_labels_cumsum = sorted_labels.sum() - left_sorted_labels_cumsum
-        right_sorted_labels_mean = right_sorted_labels_cumsum / right_labels_cumcount
-        left_sorted_labels_one_rate = left_sorted_labels_mean
-        left_sorted_labels_zero_rate = 1 - left_sorted_labels_mean
-        right_sorted_labels_one_rate = right_sorted_labels_mean
-        right_sorted_labels_zero_rate = 1 - right_sorted_labels_mean
-        left_entropy = - left_sorted_labels_zero_rate * np.log2(left_sorted_labels_zero_rate + 1e-9) - left_sorted_labels_one_rate * np.log2(left_sorted_labels_one_rate + 1e-9)
-        right_entropy = - right_sorted_labels_zero_rate * np.log2(right_sorted_labels_zero_rate + 1e-9) - right_sorted_labels_one_rate * np.log2(right_sorted_labels_one_rate + 1e-9)
-        weighted_entropy = left_prob * left_entropy + right_prob * right_entropy
-        info_gain = base_entropy - weighted_entropy
-        return thresholds, info_gain
+        filter_sorted_labels_t = filter_sorted_labels.T
+        filter_sorted_labels_t = np.ascontiguousarray(filter_sorted_labels_t)
+        filter_sorted_labels_t_flatten = filter_sorted_labels_t.reshape(-1)
+        filter_sorted_labels_t_total_cumsum_flatteen = filter_sorted_labels_t_flatten.cumsum()
+        filter_sorted_labels_t_total_cumsum = filter_sorted_labels_t_total_cumsum_flatteen.reshape(filter_sorted_labels_t.shape)
+        filter_sorted_labels_total_cumsum = filter_sorted_labels_t_total_cumsum.T
+        filter_sorted_labels_total_cumsum = np.ascontiguousarray(filter_sorted_labels_total_cumsum)
+        filter_sorted_labels_left_sum = np.concatenate((np.array([0], dtype = np.int64), filter_sorted_labels_total_cumsum[-1,:-1]))
+        filter_sorted_labels_cumsum = filter_sorted_labels_total_cumsum - filter_sorted_labels_left_sum
+        left_sorted_labels_cumsum = filter_sorted_labels_cumsum[:-1,:]
+        left_sorted_labels_cumsum = np.ascontiguousarray(left_sorted_labels_cumsum)
+        right_sorted_labels_cumsum = np.sum(filter_sorted_labels[:,0]) - left_sorted_labels_cumsum
+        left_sorted_labels_one_rate = left_sorted_labels_cumsum / left_labels_cumcount.reshape(-1,1)
+        right_sorted_labels_one_rate = right_sorted_labels_cumsum / right_labels_cumcount.reshape(-1,1)
+        left_sorted_labels_zero_rate = 1 - left_sorted_labels_one_rate
+        right_sorted_labels_zero_rate = 1 - right_sorted_labels_one_rate
+        left_entropy = -left_sorted_labels_zero_rate * np.log2(left_sorted_labels_zero_rate + 1e-9) - left_sorted_labels_one_rate * np.log2(left_sorted_labels_one_rate + 1e-9)
+        right_entropy = -right_sorted_labels_zero_rate * np.log2(right_sorted_labels_zero_rate + 1e-9) - right_sorted_labels_one_rate * np.log2(right_sorted_labels_one_rate + 1e-9)
+        weighted_entropy = left_prob.reshape(-1,1) * left_entropy + right_prob.reshape(-1,1) * right_entropy
+        metrices = base_entropy - weighted_entropy
+        return metrices
     
     
     @staticmethod
@@ -330,6 +279,7 @@ class DecisionTreeZhoumath:
         :return: Intrinsic Value (IV).
         """
         intrinsic_value = - left_prob * np.log2(left_prob) - right_prob * np.log2(right_prob)
+        intrinsic_value = intrinsic_value.reshape(-1,1)
         return intrinsic_value
     
     
@@ -344,7 +294,9 @@ class DecisionTreeZhoumath:
         :return: Left and right split indices.
         """
         left_indices = full_sorted_indices[:(best_index+1), best_feature]
+        left_indices = np.ascontiguousarray(left_indices)
         right_indices = full_sorted_indices[(best_index+1):, best_feature]
+        right_indices = np.ascontiguousarray(right_indices)
         return left_indices, right_indices
     
     
@@ -357,7 +309,7 @@ class DecisionTreeZhoumath:
         X = np.array(data)
         indices = np.arange(X.shape[0], dtype = int)
         current_node = np.zeros((X.shape[0]), dtype = int)
-        probs = np.zeros((X.shape[0]))
+        probs = np.empty((X.shape[0]))
         
         for i in range(len(self.tree)):
             node = self.tree[i]
@@ -412,6 +364,5 @@ class DecisionTreeZhoumath:
             if "feature" in node:
                 node["feature"] = column_names[node["feature"]]
             
-        
     
     

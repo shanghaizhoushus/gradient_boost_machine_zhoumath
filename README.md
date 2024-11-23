@@ -1,4 +1,4 @@
-# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.6)
+# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.7)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -34,6 +34,12 @@ This project provides a basic implementation of a decision tree and tree-based e
   - Enhanced decision tree construction logic by refining BFS and DFS methods for better depth control and efficiency.
   - Improved feature perturbation logic to ensure better handling of data with low variance.
   - Added more detailed comments to code for easier readability and maintenance.
+
+- **New in v0.1.7**:
+  - Added support for handling missing values (`NaN`) in feature data during decision tree construction.
+  - Enhanced the decision tree algorithm (`DecisionTreeWithNullZhoumath`) to make informed decisions on how to split data with missing values.
+  - Introduced new logic for assigning missing values to either left or right branches during node splitting, ensuring better performance with incomplete datasets.
+  - Updated prediction methods to handle missing values effectively during inference.
 
 ## Installation
 ### Prerequisites
@@ -108,7 +114,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements.
 
 ## Version
-Current version: **0.1.6**
+Current version: **0.1.7**
 
 ## Author
 
@@ -119,3 +125,4 @@ Current version: **0.1.6**
 ## Acknowledgements
 - `scikit-learn` for providing easy access to datasets and evaluation tools.
 - The open-source community for ongoing inspiration and support.
+

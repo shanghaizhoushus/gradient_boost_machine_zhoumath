@@ -43,7 +43,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 data = load_breast_cancer(as_frame=True)
 X, y = np.array(data.data), np.array(data.target)
 '''
-data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 110000)
+data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 11000000)
 X = data.iloc[:, 1:]
 y = data.iloc[:, 0]
 '''
@@ -52,25 +52,34 @@ y = data.iloc[:, 0]
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
-# Train the decision tree
-max_depth = 8
+# Train the decision tree with null handled
+max_depth = 20
 split_criterion = 'gain'
 search_method = 'dfs'
+X_train = np.array(X_train)
+mask = np.random.uniform(size = X_train.shape) > 1
+X_train[mask] = np.nan
 tree_model = DecisionTreeZhoumath(split_criterion=split_criterion,
                                   search_method=search_method,
                                   max_depth=max_depth)
 tic = time.time()
-tree_model.fit(X_train, y_train)
+tree_model.fit(data=X_train,
+               labels=y_train,
+               val_data = X_val,
+               val_labels = y_val)
 toc = time.time()
 gap = toc-tic
-print(f'The decision-tree-zhoumath model is bulit in {gap:.5f} seconds.')
+print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f} seconds.')
 
 # Predict and evaluate
+X_test = np.array(X_test)
+mask = np.random.uniform(size = X_test.shape) > 1
+X_test[mask] = np.nan
 tic = time.time()
 y_test_pred = tree_model.predict_proba(X_test)[:, 1]
 toc = time.time()
 gap = toc-tic
-print(f'The decision-tree-zhoumath model is predicted in {gap:.5f} seconds.')
+print(f'The decision-tree-with-null-zhoumath model is predicted in {gap:.5f} seconds.')
 auc_score = roc_auc_score(y_test, y_test_pred)
 fpr, tpr, _ = roc_curve(y_test, y_test_pred)
 ks = tpr[abs(tpr - fpr).argmax()] - fpr[abs(tpr - fpr).argmax()]
@@ -100,57 +109,8 @@ df["y_pred"] = y_test_pred
 tmp = calRankingByFreq2(df, label="y", score="y_pred", bins=10)
 print(tmp)
 
-#----------------------
-
-# Load dataset
-data = load_breast_cancer(as_frame=True)
-X, y = np.array(data.data), np.array(data.target)
-
-# Split dataset into train and test
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
-
-# Train the decision tree with null handled
-max_depth = 8
-split_criterion = 'gain'
-search_method = 'dfs'
-X_train = np.array(X_train)
-musk = np.random.uniform(size = X_train.shape) > 0.8
-X_train[musk] = np.nan
-tree_model = DecisionTreeZhoumath(split_criterion=split_criterion,
-                                  search_method=search_method,
-                                  max_depth=max_depth)
-tic = time.time()
-tree_model.fit(X_train, y_train)
-toc = time.time()
-gap = toc-tic
-print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f} seconds.')
-
-# Predict and evaluate
-X_test = np.array(X_test)
-musk = np.random.uniform(size = X_test.shape) > 0.8
-X_test[musk] = np.nan
-tic = time.time()
-y_test_pred = tree_model.predict_proba(X_test)[:, 1]
-toc = time.time()
-gap = toc-tic
-print(f'The decision-tree-with-null-zhoumath model is predicted in {gap:.5f} seconds.')
-auc_score = roc_auc_score(y_test, y_test_pred)
-fpr, tpr, _ = roc_curve(y_test, y_test_pred)
-ks = tpr[abs(tpr - fpr).argmax()] - fpr[abs(tpr - fpr).argmax()]
-print(f"KS = {ks:.3f}\nAUC = {auc_score:.3f}")
-
-# Plot ROC Curve
-plt.plot(fpr, fpr, label="Random Guess")
-plt.plot(fpr, tpr, label=f"ROC Curve (AUC = {auc_score:.3f})")
-plt.plot(
-    [fpr[abs(tpr - fpr).argmax()]] * len(fpr),
-    np.linspace(fpr[abs(tpr - fpr).argmax()], tpr[abs(tpr - fpr).argmax()], len(fpr)),
-    "--",
-)
-plt.title("ROC Curve of Decision Tree")
-plt.legend()
-plt.show()
+#Save model to a pkl
+tree_model.to_pkl("tree_model_zhoumath.pkl") 
 
 #----------------------
 

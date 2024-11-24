@@ -9,15 +9,27 @@ Created on Wed Nov 20 09:09:39 2024
 import warnings
 import numpy as np
 from collections import deque
+from sklearn.metrics import roc_auc_score
 from numba import njit
+import pickle
 
 # Settings
 warnings.filterwarnings("ignore", category=UserWarning)
 
+# TreeNode class(Under Construction)
+class TreeNode:
+    def __init__(self, feature=None, threshold=None, prob=None, left=None, right=None, null_direction=None):
+        self.feature = feature
+        self.threshold = threshold
+        self.prob = prob
+        self.left = left
+        self.right = right
+        self.null_direction = null_direction
+
 # DecisionTree class
 class DecisionTreeZhoumath:
     
-    def __init__(self, split_criterion, search_method, max_depth=None):
+    def __init__(self, split_criterion, search_method, max_depth=None, pos_weight = 1):
         """
         Initialize the decision tree.
         :param split_criterion: Criterion for splitting ("gain" or "gain_ratio").
@@ -36,30 +48,57 @@ class DecisionTreeZhoumath:
         self.split_criterion = split_criterion
         self.search_method = search_method
         self.max_depth = max_depth
+        self.pos_weight = pos_weight
         self.tree = None
     
-    def fit(self, data, labels, random_state=42):
+    def fit(self, data, labels, val_data = None, val_labels = None, early_stop_rounds = 1, random_state=42):
         """
         Train the decision tree.
         :param data: Feature data.
         :param labels: Labels.
         :param random_state: Random seed for reproducibility.
         """
+        if self.early_stop and self.search_method != 'bfs':
+            raise ValueError("Early Stopping requires 'bfs' as the search method.")
+            
         if np.any(np.isnan(data)):
             tree_with_null = DecisionTreeWithNullZhoumath(
                 split_criterion=self.split_criterion,
                 search_method=self.search_method,
                 max_depth=self.max_depth
             )
-            tree_with_null.fit(data, labels)
+            tree_with_null.fit(data, labels, val_data, val_labels, early_stop_rounds, random_state)
             self.tree = tree_with_null.tree
-        else:
-            data = np.ascontiguousarray(data)
-            data = self._add_perturbation(data, random_state)
-            labels = np.ascontiguousarray(labels.astype(np.int32))
-            self.data = data
-            self.labels = labels
-            self.tree = self._build_tree(random_state)
+            
+            return 0
+            
+        self.early_stop = False
+        
+        if (val_data is not None) and (val_data is not None):
+            print("Early stop mode is opened. Search method can only be BFS.")
+            self.early_stop = True
+            self.val_data = val_data
+            self.val_labels = val_labels
+            self.search_method = 'bfs'
+            self.early_stop_rounds = early_stop_rounds
+            self.best_auc = 0
+            self.best_tree = []
+        
+        data = np.ascontiguousarray(data)
+        data = DecisionTreeZhoumath._add_perturbation(data, random_state)
+        labels = np.ascontiguousarray(labels.astype(np.int32))
+        self.data = data
+        self.labels = labels
+        self.tree = self._build_tree()
+            
+        if self.early_stop == True:
+            self.tree = self.best_tree
+            
+        self.data = None
+        self.labels = None
+        
+        return 0
+    
     
     @staticmethod
     @njit
@@ -74,10 +113,9 @@ class DecisionTreeZhoumath:
         perturbation = np.random.uniform(-1, 1, size=data.shape) * 1e-7
         return data + perturbation
     
-    def _build_tree(self, random_state):
+    def _build_tree(self):
         """
         Recursively build the decision tree.
-        :param random_state: Random seed for reproducibility.
         :return: A decision tree represented as a list of nodes.
         """
         if self.search_method == 'dfs':
@@ -97,6 +135,10 @@ class DecisionTreeZhoumath:
         
         tree = []
         
+        if self.early_stop == True:
+            current_max_depth = 0
+            currert_early_stop_rounds = 0
+        
         while collection:
             node = pop_method()
             node_index = len(tree)
@@ -105,8 +147,14 @@ class DecisionTreeZhoumath:
             parent_index = node.get("parent_index", None)
             child_direction = node.get("child_direction", None)
             
+            if self.early_stop == True and depth > current_max_depth:
+                current_max_depth, currert_early_stop_rounds = self._evaluate_early_stop(tree, depth, current_max_depth, currert_early_stop_rounds)
+                
+                if currert_early_stop_rounds >= self.early_stop_rounds:
+                    return tree
+            
             if (self.max_depth is not None and depth >= self.max_depth) or np.unique(labels).size == 1:
-                probabilities = self._calculate_probabilities(labels)
+                probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
                 leaf = {"prob": probabilities}
                 self._add_node_to_tree(tree, parent_index, node_index, child_direction, leaf)
                 continue
@@ -116,12 +164,19 @@ class DecisionTreeZhoumath:
             )
             
             if best_feature is None or best_metric <= 0:
-                probabilities = self._calculate_probabilities(labels)
+                probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
                 leaf = {"prob": probabilities}
                 self._add_node_to_tree(tree, parent_index, node_index, child_direction, leaf)
                 continue
             
             current_node = {"feature": best_feature, "threshold": best_threshold}
+            
+            if self.early_stop == True:
+                probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
+                leaf = {"prob": probabilities}
+                current_node["prob"] = probabilities
+            
+            
             self._add_node_to_tree(tree, parent_index, node_index, child_direction, current_node)
             
             collection.append({
@@ -138,8 +193,31 @@ class DecisionTreeZhoumath:
                 "parent_index": node_index,
                 "child_direction": "left"
             })
+            
+        if self.early_stop == True:
+            current_max_depth, currert_early_stop_rounds = self._evaluate_early_stop(tree, depth, current_max_depth, currert_early_stop_rounds)
+            
+            if currert_early_stop_rounds >= self.early_stop_rounds:
+                return tree
         
         return tree
+    
+    def _evaluate_early_stop(self, tree, depth, current_max_depth, currert_early_stop_rounds):
+        labels_pred = self.predict_proba(self.data, tree)[:, 1]
+        val_labels_pred = self.predict_proba(self.val_data, tree)[:, 1]
+        train_auc = roc_auc_score(self.labels, labels_pred)
+        val_auc = roc_auc_score(self.val_labels, val_labels_pred)
+        print(f'Current depth: {current_max_depth}, current train AUC: {train_auc:.3f}, current val AUC: {val_auc:.3f}')
+        current_max_depth = depth
+        
+        if val_auc > self.best_auc:
+            currert_early_stop_rounds = 0
+            self.best_auc = val_auc
+            self.best_tree = tree
+        else:
+            currert_early_stop_rounds += 1
+            
+        return current_max_depth, currert_early_stop_rounds
     
     @staticmethod
     @njit
@@ -181,24 +259,28 @@ class DecisionTreeZhoumath:
         if depth == 0:
             filtered_sorted_indices = parent_sorted_indices     
         else:
-            filtered_sorted_indices = self._filter_sorted_indices(row_indices, parent_sorted_indices)
+            filtered_sorted_indices = DecisionTreeZhoumath._filter_sorted_indices(row_indices, parent_sorted_indices)
             
         selected_labels = np.ascontiguousarray(self.labels[row_indices])
-        base_entropy = self._calculate_entropy(selected_labels)
+        base_entropy = DecisionTreeZhoumath._calculate_entropy(selected_labels, self.pos_weight)
         
         filtered_sorted_labels = np.ascontiguousarray(self.labels[filtered_sorted_indices])
-        metrics = self._calculate_metrics(filtered_sorted_labels, base_entropy)
+        metrics = DecisionTreeZhoumath._calculate_metrics(filtered_sorted_labels, base_entropy, self.pos_weight)
         
         if self.split_criterion == 'gain_ratio':
-            intrinsic_value = self._calculate_intrinsic_value(selected_labels)
+            intrinsic_value = DecisionTreeZhoumath._calculate_intrinsic_value(selected_labels)
             metrics = metrics / intrinsic_value
     
         best_metric = np.max(metrics)
         best_index, best_feature = np.unravel_index(metrics.argmax(), metrics.shape)
-        left_indices, right_indices = self._get_left_right_indices(filtered_sorted_indices, best_index, best_feature)
+        left_indices, right_indices = DecisionTreeZhoumath._get_left_right_indices(filtered_sorted_indices, best_index, best_feature)
         sorted_best_feature_data = self.data[:, best_feature][filtered_sorted_indices[:, best_feature]]
         sorted_best_feature_data = np.ascontiguousarray(sorted_best_feature_data)
-        best_threshold = (sorted_best_feature_data[best_index] + sorted_best_feature_data[best_index + 1]) / 2
+        best_threshold = np.round((sorted_best_feature_data[best_index] + sorted_best_feature_data[best_index + 1]) / 2, 7)
+        
+        if best_threshold <= 0:
+            return None, None, None, None, None, None
+        
         return best_feature, best_threshold, best_metric, left_indices, right_indices, filtered_sorted_indices
     
     @staticmethod
@@ -239,7 +321,7 @@ class DecisionTreeZhoumath:
     
     @staticmethod
     @njit
-    def _calculate_entropy(labels):
+    def _calculate_entropy(labels, pos_weight):
         """
         Calculate the base entropy for the given labels.
         :param labels: Labels.
@@ -247,11 +329,11 @@ class DecisionTreeZhoumath:
         """
         one_rate = labels.mean()
         zero_rate = 1 - one_rate
-        return -zero_rate * np.log2(zero_rate) - one_rate * np.log2(one_rate)
+        return -zero_rate * np.log2(zero_rate + 1e-9) - pos_weight * one_rate * np.log2(one_rate + 1e-9)
     
     @staticmethod
     @njit
-    def _calculate_metrics(sorted_labels, base_entropy):
+    def _calculate_metrics(sorted_labels, base_entropy, pos_weight):
         """
         Calculate information gain for potential split thresholds.
         :param sorted_labels: Labels sorted by the feature values.
@@ -270,8 +352,8 @@ class DecisionTreeZhoumath:
         right_one_rate = right_cumsum / np.arange(num_rows - 1, 0, -1).reshape(-1, 1)
         left_zero_rate = np.ones(left_one_rate.shape) - left_one_rate
         right_zero_rate = np.ones(right_one_rate.shape) - right_one_rate
-        left_entropy = -left_zero_rate * np.log2(left_zero_rate + 1e-9) - left_one_rate * np.log2(left_one_rate + 1e-9)
-        right_entropy = -right_zero_rate * np.log2(right_zero_rate + 1e-9) - right_one_rate * np.log2(right_one_rate + 1e-9)
+        left_entropy = -left_zero_rate * np.log2(left_zero_rate + 1e-9) - pos_weight * left_one_rate * np.log2(left_one_rate + 1e-9)
+        right_entropy = -right_zero_rate * np.log2(right_zero_rate + 1e-9) - pos_weight * right_one_rate * np.log2(right_one_rate + 1e-9)
         left_probs = (np.arange(1, num_rows) / num_rows).reshape(-1, 1)
         right_probs = (np.arange(num_rows - 1, 0, -1) / num_rows).reshape(-1, 1)
         weighted_entropy = left_probs * left_entropy + right_probs * right_entropy
@@ -288,7 +370,7 @@ class DecisionTreeZhoumath:
         num_rows = labels.shape[0]
         left_prob = (np.arange(1, num_rows) / num_rows).reshape(-1, 1)
         right_prob = (np.arange(num_rows - 1, 0, -1) / num_rows).reshape(-1, 1)
-        intrinsic_value = -left_prob * np.log2(left_prob) - right_prob * np.log2(right_prob)
+        intrinsic_value = -left_prob * np.log2(left_prob + 1e-9) - right_prob * np.log2(right_prob + 1e-9)
         return intrinsic_value.reshape(-1, 1)
     
     @staticmethod
@@ -305,30 +387,34 @@ class DecisionTreeZhoumath:
         right_indices = full_sorted_indices[(best_index + 1):, best_feature]
         return np.ascontiguousarray(left_indices), np.ascontiguousarray(right_indices)
     
-    def predict_proba(self, data):
+    def predict_proba(self, data, tree = None):
         """
         Predict probabilities for a batch of samples.
         :param data: Feature data.
         :return: Probability predictions as a 2D array.
         """
+        if tree is None:
+            tree = self.tree
+
         X = np.ascontiguousarray(data)
         indices = np.arange(X.shape[0], dtype=int)
         current_node = np.zeros((X.shape[0]), dtype=int)
         probabilities = np.empty((X.shape[0]))
         
-        for i in range(len(self.tree)):
-            node = self.tree[i]
+        for i in range(len(tree)):
+            node = tree[i]
             feature = node.get('feature', None)
             threshold = node.get('threshold', None)
             left = node.get('left', None)
             right = node.get('right', None)
             prob = node.get('prob', None)
-            self._traverse_next_node(feature, threshold, left, right, prob, X, indices, current_node, probabilities, 'left', i)
+            null_direction = node.get('null_direction', 'left')
+            DecisionTreeZhoumath._traverse_next_node(feature, threshold, left, right, prob, X,
+                                                     indices, current_node, probabilities, null_direction, i)
         
         return np.vstack([1 - probabilities, probabilities]).T
     
     @staticmethod
-    @njit
     def _traverse_next_node(feature, threshold, left, right, prob, X, indices, current_node, probabilities, null_direction, i):
         """
         Navigate to the next node in the decision tree.
@@ -351,9 +437,11 @@ class DecisionTreeZhoumath:
                 left_condition = (feature_values <= threshold) | np.isnan(feature_values)
             else:
                 left_condition = (feature_values <= threshold)
-
-            current_node[index[left_condition]] = left
-            current_node[index[~left_condition]] = right
+                
+                
+            if left is not None and right is not None:
+                current_node[index[left_condition]] = left
+                current_node[index[~left_condition]] = right
         
         if prob is not None:
             probabilities[indices[current_node == i]] = prob[1]
@@ -366,27 +454,53 @@ class DecisionTreeZhoumath:
         for node in self.tree:
             if "feature" in node and isinstance(node["feature"], int):
                 node["feature"] = column_names[node["feature"]]
+                
+    def to_pkl(self, filename):
+        """
+        Save the current model instance to a pickle file.
+        :param filename: Path to the file where the model will be saved.
+        """
+        with open(filename, "wb") as f:
+            pickle.dump(self, f)
 
 #DecisionTreeWithNullZhoumath extends DecisionTreeZhoumath
 class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
     
-    def fit(self, data, labels, random_state=42):
+    def fit(self, data, labels, val_data, val_labels, early_stop_rounds, random_state=42):
         """
         Train the decision tree.
         :param data: Feature data.
         :param labels: Labels.
         """
+        self.early_stop = False
+        
+        if (val_data is not None) and (val_data is not None):
+            print("Early stop mode is opened. Search method can only be BFS.")
+            self.early_stop = True
+            self.val_data = val_data
+            self.val_labels = val_labels
+            self.search_method = 'bfs'
+            self.early_stop_rounds = early_stop_rounds
+            self.best_auc = 0
+            self.best_tree = []
+        
         data = np.ascontiguousarray(data)
-        data = self._add_perturbation(data, random_state)
+        data = DecisionTreeZhoumath._add_perturbation(data, random_state)
         labels = np.ascontiguousarray(labels.astype(np.int32))
         self.data = data
         self.labels = labels
-        self.tree = self._build_tree(random_state)
+        self.tree = self._build_tree()
+            
+        if self.early_stop == True:
+            self.tree = self.best_tree
+            
+        self.data = None
+        self.labels = None
+        
     
-    def _build_tree(self, random_state):
+    def _build_tree(self):
         """
         Recursively build the decision tree.
-        :param random_state: Random seed for reproducibility.
         :return: A decision tree represented as a list of nodes.
         """
         data = self.data
@@ -406,7 +520,7 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
                 "parent_null_indices": root_null_indices
             }]
             pop_method = collection.pop
-        else:  # bfs
+        else:
             collection = deque([{
                 "depth": 0,
                 "row_indices": np.arange(self.labels.shape[0]),
@@ -416,6 +530,10 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
             pop_method = collection.popleft
             
         tree = []
+        
+        if self.early_stop == True:
+            current_max_depth = 0
+            currert_early_stop_rounds = 0
         
         while collection:
             node = pop_method()
@@ -427,8 +545,15 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
             parent_index = node.get("parent_index", None)
             child_direction = node.get("child_direction", None)
             
+            if self.early_stop == True and depth > current_max_depth:
+                print(self.best_auc)
+                current_max_depth, currert_early_stop_rounds = self._evaluate_early_stop(tree, depth, current_max_depth, currert_early_stop_rounds)
+                
+                if currert_early_stop_rounds >= self.early_stop_rounds:
+                    return tree
+            
             if (self.max_depth is not None and depth >= self.max_depth) or np.unique(labels).size == 1:
-                probabilities = self._calculate_probabilities(labels)
+                probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
                 leaf = {"prob": probabilities}
                 self._add_node_to_tree(tree, parent_index, node_index, child_direction, leaf)
                 continue
@@ -438,12 +563,18 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
             )
             
             if best_feature is None or best_metric <= 0:
-                probabilities = self._calculate_probabilities(labels)
+                probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
                 leaf = {"prob": probabilities}
                 self._add_node_to_tree(tree, parent_index, node_index, child_direction, leaf)
                 continue
             
             current_node = {"feature": best_feature, "threshold": best_threshold, "null_direction": best_null_direction}
+            
+            if self.early_stop == True:
+                probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
+                leaf = {"prob": probabilities}
+                current_node["prob"] = probabilities
+            
             self._add_node_to_tree(tree, parent_index, node_index, child_direction, current_node)
             
             collection.append({
@@ -464,6 +595,12 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
                 "child_direction": "left",
                 "parent_null_indices": root_null_indices
             })
+            
+        if self.early_stop == True:
+            current_max_depth, currert_early_stop_rounds = self._evaluate_early_stop(tree, depth, current_max_depth, currert_early_stop_rounds)
+            
+            if currert_early_stop_rounds >= self.early_stop_rounds:
+                return tree
         
         return tree
     
@@ -488,15 +625,15 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
             filtered_sorted_indices = parent_sorted_indices
             filtered_null_indices = parent_null_indices
         else:
-            filtered_sorted_indices, filtered_null_indices = self._filter_sorted_indices_with_null(
+            filtered_sorted_indices, filtered_null_indices = DecisionTreeWithNullZhoumath._filter_sorted_indices(
                 row_indices, parent_sorted_indices, parent_null_indices
             )
             
         selected_labels = np.ascontiguousarray(self.labels[row_indices])
-        base_entropy = self._calculate_entropy(selected_labels)
+        base_entropy = DecisionTreeZhoumath._calculate_entropy(selected_labels, self.pos_weight)
         
         if self.split_criterion == 'gain_ratio':
-            intrinsic_value = self._calculate_intrinsic_value(selected_labels)
+            intrinsic_value = DecisionTreeZhoumath._calculate_intrinsic_value(selected_labels)
         
         for feature_index in range(num_features):
             for null_direction in ['left', 'right']:
@@ -506,18 +643,17 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
                 if null_direction == 'left':
                     sorted_indices = np.concatenate([null_indices, sorted_indices])
                     sorted_data = np.ascontiguousarray(self.data[sorted_indices, feature_index])
-                    sorted_data_min = np.min(sorted_data)
-                    sorted_data = np.nan_to_num(sorted_data, sorted_data_min - 1)
+                    sorted_data = np.nan_to_num(sorted_data, nan=-np.inf)
                 else:
                     sorted_indices = np.concatenate([sorted_indices, null_indices])
                     sorted_data = np.ascontiguousarray(self.data[sorted_indices, feature_index])
-                    sorted_data_max = np.max(sorted_data)
-                    sorted_data = np.nan_to_num(sorted_data, sorted_data_max + 1)
+                    sorted_data = np.nan_to_num(sorted_data, nan=np.inf)
                 
                 sorted_labels = np.ascontiguousarray(self.labels[sorted_indices])
-                metrics = self._calculate_metrics(sorted_labels, base_entropy)
+                metrics = DecisionTreeWithNullZhoumath._calculate_metrics(sorted_labels, base_entropy, self.pos_weight)
                 
                 if self.split_criterion == 'gain_ratio':
+                    intrinsic_value = intrinsic_value.reshape(-1)
                     metrics = metrics / intrinsic_value
             
                 metrics_max = metrics.max()
@@ -533,7 +669,7 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
         null_indices = filtered_null_indices[best_feature]
         null_shape = null_indices.shape[0]
         
-        if ((best_index <= null_shape) and (best_null_direction == 'left')) or ((best_index >= selected_labels.shape[0] - null_shape) and (best_null_direction == 'right')):
+        if ((best_index <= null_shape) and (best_null_direction == 'left')) or best_threshold <= 0 or ((best_index >= selected_labels.shape[0] - null_shape) and (best_null_direction == 'right')):
             return None, None, None, None, None, None, None, None
         
         if best_null_direction == 'left':
@@ -551,7 +687,7 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
         )
     
     @staticmethod
-    def _filter_sorted_indices_with_null(row_indices, parent_sorted_indices, parent_null_indices):
+    def _filter_sorted_indices(row_indices, parent_sorted_indices, parent_null_indices):
         """
         Retrieve the sorted indices for the given rows, considering missing values.
         :param row_indices: Row indices to filter.
@@ -573,8 +709,10 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
         
         return np.array(filtered_sorted_indices, dtype=object), np.array(filtered_null_indices, dtype=object)
     
+    
     @staticmethod
-    def _calculate_metrics(sorted_labels, base_entropy):
+    @njit
+    def _calculate_metrics(sorted_labels, base_entropy, pos_weight):
         """
         Calculate information gain for potential split thresholds.
         :param sorted_labels: Labels sorted by the feature values.
@@ -591,7 +729,8 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
         right_zero_rate = 1 - right_one_rate
         left_probs = (np.arange(1, num_rows) / num_rows)
         right_probs = (np.arange(num_rows - 1, 0, -1) / num_rows)
-        left_entropy = -left_zero_rate * np.log2(left_zero_rate + 1e-9) - left_one_rate * np.log2(left_one_rate + 1e-9)
-        right_entropy = -right_zero_rate * np.log2(right_zero_rate + 1e-9) - right_one_rate * np.log2(right_one_rate + 1e-9)
+        left_entropy = -left_zero_rate * np.log2(left_zero_rate + 1e-9) - pos_weight *  left_one_rate * np.log2(left_one_rate + 1e-9)
+        right_entropy = -right_zero_rate * np.log2(right_zero_rate + 1e-9) - pos_weight * right_one_rate * np.log2(right_one_rate + 1e-9)
         weighted_entropy = left_probs * left_entropy + right_probs * right_entropy
         return base_entropy - weighted_entropy
+    

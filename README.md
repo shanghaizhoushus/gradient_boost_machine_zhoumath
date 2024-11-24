@@ -1,4 +1,4 @@
-# Gradient Boost Machine Zhoumath Implementation - Zhoushus (v0.1.8)
+# Decision Tree Zhoumath Implementation - Zhoushus (v0.1.9)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -49,6 +49,13 @@ This project provides a basic implementation of a decision tree and tree-based e
     - Added optimized feature sorting and filtering methods to improve efficiency when handling data with missing values.
     - Updated training methods to automatically select the appropriate decision tree version (with or without null support) based on the input data.
     - Enhanced batch prediction process to accommodate missing values, ensuring consistent performance during inference.
+
+  - **New in v0.1.9**:
+    - Added support for early stopping using validation data based on AUC score, allowing the model to stop training when there is no improvement, thus preventing overfitting.
+    - Introduced `pos_weight` parameter to handle imbalanced datasets, adjusting the importance of positive samples during tree construction.
+    - Enhanced missing value handling by improving the logic for dynamically assigning missing values to either left or right branches during node splitting.
+    - Improved overall training efficiency by incorporating real-time validation AUC evaluation and saving the best model during early stopping.
+    - Added a new method `to_pkl` to save the trained model as a `.pkl` file for easy reuse.
 
 ## Installation
 ### Prerequisites
@@ -122,7 +129,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.1.8**
+Current version: **0.1.9**
 
 ## Author
 

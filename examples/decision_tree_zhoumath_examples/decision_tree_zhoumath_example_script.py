@@ -53,11 +53,11 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
 # Train the decision tree with null handled
-max_depth = 20
-split_criterion = 'gain'
-search_method = 'dfs'
+max_depth = 10
+split_criterion = 'gini'
+search_method = 'bfs'
 X_train = np.array(X_train)
-mask = np.random.uniform(size = X_train.shape) > 1
+mask = np.random.uniform(size = X_train.shape) > 0.8
 X_train[mask] = np.nan
 tree_model = DecisionTreeZhoumath(split_criterion=split_criterion,
                                   search_method=search_method,
@@ -66,17 +66,18 @@ tic = time.time()
 tree_model.fit(data=X_train,
                labels=y_train,
                val_data = X_val,
-               val_labels = y_val)
+               val_labels = y_val,
+               early_stop_rounds = 1)
 toc = time.time()
 gap = toc-tic
 print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f} seconds.')
 
 # Predict and evaluate
 X_test = np.array(X_test)
-mask = np.random.uniform(size = X_test.shape) > 1
+mask = np.random.uniform(size = X_test.shape) > 0.8
 X_test[mask] = np.nan
 tic = time.time()
-y_test_pred = tree_model.predict_proba(X_test)[:, 1]
+y_test_pred = tree_model.predict_proba(X_test, tree_model.tree)[:, 1]
 toc = time.time()
 gap = toc-tic
 print(f'The decision-tree-with-null-zhoumath model is predicted in {gap:.5f} seconds.')
@@ -98,8 +99,8 @@ plt.legend()
 plt.show()
 
 # Replace feature indices with column names
-df = pd.DataFrame(X_test,columns=data.data.columns[:])
-col_names = df.columns.tolist()
+df = pd.DataFrame(X_test)
+col_names = X.columns.tolist()
 tree_model.replace_features_with_column_names(col_names)
 print("Constructed Decision Tree:", tree_model.tree)
 

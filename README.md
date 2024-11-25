@@ -1,4 +1,4 @@
-# Decision Tree Zhoumath Implementation - Zhoushus (v0.1.9)
+# Decision Tree Zhoumath Implementation - Zhoushus (v0.1.10)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -56,6 +56,13 @@ This project provides a basic implementation of a decision tree and tree-based e
     - Enhanced missing value handling by improving the logic for dynamically assigning missing values to either left or right branches during node splitting.
     - Improved overall training efficiency by incorporating real-time validation AUC evaluation and saving the best model during early stopping.
     - Added a new method `to_pkl` to save the trained model as a `.pkl` file for easy reuse.
+
+  - **New in v0.1.10**:
+    - Introduced modular classes (`TreeNode`, `CollectionNode`, `BestStatus`, `EarlyStopper`) to enhance code organization, modularity, and readability.
+    - Improved missing value handling by refining node split strategies and dynamically selecting left or right branches based on feature values.
+    - Enhanced early stopping mechanism through a dedicated `EarlyStopper` class for better control and transparency during model training.
+    - Added support for Gini impurity as a new split criterion (`gini`), providing additional flexibility for classification tasks.
+    - Improved performance and readability by refactoring key components and introducing more efficient tree traversal and node processing logic.
 
 ## Installation
 ### Prerequisites
@@ -129,10 +136,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.1.9**
+Current version: **0.1.10**
 
 ## Author
-
 - **Zhoushus**
   - Email: [zhoushus@foxmail.com](mailto:zhoushus@foxmail.com)
   - GitHub: [https://github.com/shanghaizhoushus](https://github.com/shanghaizhoushus)

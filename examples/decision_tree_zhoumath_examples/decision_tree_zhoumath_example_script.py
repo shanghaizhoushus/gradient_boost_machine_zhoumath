@@ -54,10 +54,10 @@ X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.
 
 # Train the decision tree with null handled
 max_depth = 10
-split_criterion = 'gini'
+split_criterion = 'entropy_gain'
 search_method = 'bfs'
 X_train = np.array(X_train)
-mask = np.random.uniform(size = X_train.shape) > 0.8
+mask = np.random.uniform(size = X_train.shape) > 1
 X_train[mask] = np.nan
 tree_model = DecisionTreeZhoumath(split_criterion=split_criterion,
                                   search_method=search_method,
@@ -74,7 +74,7 @@ print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f
 
 # Predict and evaluate
 X_test = np.array(X_test)
-mask = np.random.uniform(size = X_test.shape) > 0.8
+mask = np.random.uniform(size = X_test.shape) > 1
 X_test[mask] = np.nan
 tic = time.time()
 y_test_pred = tree_model.predict_proba(X_test, tree_model.tree)[:, 1]
@@ -98,9 +98,12 @@ plt.title("ROC Curve of Decision Tree")
 plt.legend()
 plt.show()
 
+# Get feature importances
+feature_importances_df = tree_model.feature_importances.get_feature_importances_df(data.data.columns)
+
 # Replace feature indices with column names
 df = pd.DataFrame(X_test)
-col_names = X.columns.tolist()
+col_names = data.data.columns.tolist()
 tree_model.replace_features_with_column_names(col_names)
 print("Constructed Decision Tree:", tree_model.tree)
 

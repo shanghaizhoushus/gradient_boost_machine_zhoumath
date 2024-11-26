@@ -1,4 +1,4 @@
-# Decision Tree Zhoumath Implementation - Zhoushus (v0.1.10)
+# Decision Tree Zhoumath Implementation - Zhoushus (v0.1.11)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -63,6 +63,14 @@ This project provides a basic implementation of a decision tree and tree-based e
     - Enhanced early stopping mechanism through a dedicated `EarlyStopper` class for better control and transparency during model training.
     - Added support for Gini impurity as a new split criterion (`gini`), providing additional flexibility for classification tasks.
     - Improved performance and readability by refactoring key components and introducing more efficient tree traversal and node processing logic.
+
+  - **New in v0.1.11**:
+    - Refactored key functions to improve modularity and reusability, enhancing the readability and maintainability of the code.
+    - Added detailed docstrings for all key functions and methods to provide better understanding and easier onboarding for new developers.
+    - Improved feature importance tracking with a dedicated `FeatureImportances` class, making it easier to analyze and interpret model behavior.
+    - Enhanced `_iterate_features` function to better handle missing values and optimize feature iteration for more efficient decision tree building.
+    - Improved `_init_root_collection_node` to simplify root node initialization, reducing code redundancy.
+    - Made early stopping evaluation more transparent by refining output messages and evaluation logic.
 
 ## Installation
 ### Prerequisites
@@ -136,7 +144,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.1.10**
+Current version: **0.1.11**
 
 ## Author
 - **Zhoushus**
@@ -146,4 +154,3 @@ Current version: **0.1.10**
 ## Acknowledgements
 - `scikit-learn` for providing easy access to datasets and evaluation tools.
 - The open-source community for ongoing inspiration and support.
-

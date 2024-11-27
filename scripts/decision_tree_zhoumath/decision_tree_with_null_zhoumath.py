@@ -16,19 +16,7 @@ from decision_tree_helper_zhoumath import CollectionNode, ParentIndices, BestSta
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # DecisionTreeWithNullZhoumath extends DecisionTreeZhoumath
-class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
-    def fit(self, data, labels, val_data, val_labels, early_stop_rounds, random_state=42):
-        """
-        Train the decision tree.
-        :param data: Feature data.
-        :param labels: Labels.
-        :param val_data: Validation feature data.
-        :param val_labels: Validation labels.
-        :param early_stop_rounds: Number of rounds for early stopping.
-        :param random_state: Random seed for reproducibility.
-        """
-        self._fitting(data, labels, val_data, val_labels, early_stop_rounds, random_state)
-    
+class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):    
     def _init_root_collection_node(self):
         """
         Initialize the root collection node for the decision tree.
@@ -49,22 +37,20 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
         :param current_node: Current node being processed.
         :return: Best split status, filtered sorted indices, and filtered null indices.
         """
-        current_best_status = BestStatus()
-        num_features = self.data.shape[1]
-
-        if current_node.depth == 0:
-            filtered_indices = current_node.parent_indices
-        else:
-            filtered_indices = current_node.parent_indices._filter_sorted_indices_null(current_node.row_indices)
-        
-        selected_labels = np.ascontiguousarray(self.labels[current_node.row_indices])
-        base_metric = DecisionTreeZhoumath._calculate_base_metric(selected_labels, self.pos_weight, self.gini)
-        
+        filtered_indices, selected_labels, base_metric = self._init_best_split(current_node)
         intrinsic_value = None
+        
         if self.split_criterion == 'entropy_gain_ratio':
             intrinsic_value = DecisionTreeZhoumath._calculate_intrinsic_value(selected_labels)
             
-        current_best_status = self._iterate_features(num_features, current_best_status, filtered_indices, base_metric, intrinsic_value)
+        num_features = self.data.shape[1]
+        current_best_status = BestStatus()
+        
+        if self.random_column_rate < 1:
+            muted_column_nums = np.floor(num_features * (1 - self.random_column_rate)).astype(np.int32)
+            muted_columns = np.random.choice(np.arange(num_features), size=muted_column_nums, replace=False).astype(np.int32)
+        
+        current_best_status = self._iterate_features(num_features, current_best_status, filtered_indices, base_metric, intrinsic_value, muted_columns)
         no_best_split = current_best_status._finalize_best_status_null(filtered_indices, selected_labels)
 
         if no_best_split:
@@ -74,7 +60,7 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
 
         return current_best_status, filtered_indices
     
-    def _iterate_features(self, num_features, current_best_status, filtered_indices, base_metric, intrinsic_value):
+    def _iterate_features(self, num_features, current_best_status, filtered_indices, base_metric, intrinsic_value, muted_columns):
         """
         Iterate over features to determine the best split considering missing values.
         :param num_features: Number of features in the dataset.
@@ -85,6 +71,9 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
         :return: Updated best split status.
         """
         for feature_index in range(num_features):
+            if feature_index in muted_columns:
+                continue
+            
             for null_direction in ['left', 'right']:
                 sorted_indices = filtered_indices.parent_sorted_indices[feature_index]
                 null_indices = filtered_indices.parent_null_indices[feature_index]

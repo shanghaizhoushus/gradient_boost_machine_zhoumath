@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # DecisionTree class
 class DecisionTreeZhoumath:
-    def __init__(self, split_criterion, search_method, max_depth=None, pos_weight=1):
+    def __init__(self, split_criterion, search_method, max_depth=None, pos_weight=1, random_column_rate=1):
         """
         Initialize the decision tree.
         :param split_criterion: Criterion for splitting ("entropy_gain", "entropy_gain_ratio", or "gini").
@@ -38,8 +38,10 @@ class DecisionTreeZhoumath:
         self.search_method = search_method
         self.max_depth = max_depth
         self.pos_weight = pos_weight
+        self.random_column_rate = random_column_rate
         self.tree = None
         self.gini = 0
+        
         
         if self.split_criterion == 'gini':
             self.gini = 1
@@ -57,13 +59,13 @@ class DecisionTreeZhoumath:
         """
         from decision_tree_with_null_zhoumath import DecisionTreeWithNullZhoumath
 
-        if np.any(np.isnan(data)):
+        if np.any(np.equal(data, np.nan)):
             tree_with_null = DecisionTreeWithNullZhoumath(
                 split_criterion=self.split_criterion,
                 search_method=self.search_method,
                 max_depth=self.max_depth
             )
-            tree_with_null.fit(data, labels, val_data, val_labels, early_stop_rounds, random_state)
+            tree_with_null.fitting(data, labels, val_data, val_labels, early_stop_rounds, random_state)
             self.tree = tree_with_null.tree
             self.feature_importances = tree_with_null.feature_importances
         
@@ -80,13 +82,27 @@ class DecisionTreeZhoumath:
         :param early_stop_rounds: Number of early stop rounds without improvement before stopping.
         :param random_state: Random seed for reproducibility.
         """
-        from decision_tree_helper_zhoumath import EarlyStopper, FeatureImportances
+        from decision_tree_helper_zhoumath import EarlyStopper, FeatureImportances, CatgorialModule
+        
+        data = np.ascontiguousarray(data)
+        labels = np.ascontiguousarray(labels)
+        self.categorial_module = CatgorialModule(data)
+        
+        if np.any(self.categorial_module.is_cat_feature):
+            data = self.categorial_module._prepossess_catgorial(data, labels, random_state)
+            
+            if early_stop_rounds:
+                val_data = self.categorial_module._prepossess_catgorial_val(val_data)
+        else:
+            data = DecisionTreeZhoumath._add_perturbation(data, random_state)
         
         if early_stop_rounds and self.search_method != 'bfs':
             raise ValueError("Early Stopping requires 'bfs' as the search method.")
 
         if (val_data is not None) and (val_labels is not None) and early_stop_rounds > 0:
             print("Early stop mode is opened. Search method can only be BFS.")
+            val_data = np.ascontiguousarray(val_data)
+            val_labels = np.ascontiguousarray(val_labels)
             early_stopper = EarlyStopper(val_data=val_data,
                                          val_labels=val_labels,
                                          early_stop_rounds=early_stop_rounds)
@@ -95,8 +111,6 @@ class DecisionTreeZhoumath:
         else:
             early_stopper = None
 
-        data = np.ascontiguousarray(data)
-        data = DecisionTreeZhoumath._add_perturbation(data, random_state)
         labels = np.ascontiguousarray(labels.astype(np.int32))
         self.data = data
         self.labels = labels
@@ -104,7 +118,7 @@ class DecisionTreeZhoumath:
         self.tree = self._build_tree(early_stopper)
         self.data = None
         self.labels = None
-        
+
     @staticmethod
     def _add_perturbation(data, random_state):
         """
@@ -242,30 +256,39 @@ class DecisionTreeZhoumath:
         """
         from decision_tree_helper_zhoumath import BestStatus
         
+        filtered_indices, filtered_sorted_labels, base_metric = self._init_best_split(current_node, False)
+        metrics = DecisionTreeZhoumath._calculate_metrics(filtered_sorted_labels, base_metric, self.pos_weight, self.gini)
+
+        if self.split_criterion == 'entropy_gain_ratio':
+            intrinsic_value = DecisionTreeZhoumath._calculate_intrinsic_value(filtered_sorted_labels[:, 0])
+            metrics = metrics / intrinsic_value
+            
+        num_features = filtered_sorted_labels.shape[1]
+        
+        if self.random_column_rate < 1:
+            muted_column_nums = np.floor(num_features * (1 - self.random_column_rate)).astype(np.int32)
+            muted_columns = np.random.choice(np.arange(num_features), size=muted_column_nums, replace=False).astype(np.int32)
+            metrics[:,muted_columns] = -np.inf
+            
         current_best_status = BestStatus()
+        current_best_status._renew_best_status(metrics, filtered_indices.parent_sorted_indices, self.data)
+        self.feature_importances._renew_feature_importances(current_best_status)
+        
+        return current_best_status, filtered_indices
+    
+    def _init_best_split(self, current_node, isnull):
 
         if current_node.depth == 0:
             filtered_indices = current_node.parent_indices
         else:
-            filtered_indices = current_node.parent_indices._filter_sorted_indices(current_node.row_indices)
-            
-        selected_labels = np.ascontiguousarray(self.labels[current_node.row_indices])
-        base_metric = DecisionTreeZhoumath._calculate_base_metric(selected_labels, self.pos_weight, self.gini)
-
+            filtered_indices = current_node.parent_indices._filter_sorted_indices(current_node.row_indices, isnull)
+        
+        filtered_indices = current_node.parent_indices._filter_sorted_indices(current_node.row_indices, isnull)
         filtered_sorted_labels = np.ascontiguousarray(self.labels[filtered_indices.parent_sorted_indices])
-        metrics = DecisionTreeZhoumath._calculate_metrics(filtered_sorted_labels, base_metric, self.pos_weight, self.gini)
-
-        if self.split_criterion == 'entropy_gain_ratio':
-            intrinsic_value = DecisionTreeZhoumath._calculate_intrinsic_value(selected_labels)
-            metrics = metrics / intrinsic_value
-
-        current_best_status._renew_best_status(metrics, filtered_indices.parent_sorted_indices, self.data)
-        self.feature_importances._renew_feature_importances(current_best_status)
-
-        if current_best_status.best_threshold <= 0:
-            return None, None
-
-        return current_best_status, filtered_indices
+        base_metric = DecisionTreeZhoumath._calculate_base_metric(filtered_sorted_labels[:, 0], self.pos_weight, self.gini)
+        
+        return filtered_indices, filtered_sorted_labels, base_metric
+        
 
     @staticmethod
     @njit
@@ -279,7 +302,6 @@ class DecisionTreeZhoumath:
         """
         one_rate = labels.mean()
         zero_rate = 1 - one_rate
-        
         zero_rate = zero_rate + 1e-9
         one_rate = one_rate + 1e-9
         zero_rate = zero_rate / (zero_rate + pos_weight * one_rate)
@@ -353,58 +375,28 @@ class DecisionTreeZhoumath:
         :param tree: Decision tree to use for prediction.
         :return: Probability predictions as a 2D array.
         """
+        from decision_tree_helper_zhoumath import Predictor
+        
         if tree is None:
             tree = self.tree.copy()
-
-        X = np.ascontiguousarray(data)
-        indices = np.arange(X.shape[0], dtype=int)
-        current_node = np.zeros((X.shape[0]), dtype=int)
-        probabilities = np.zeros((X.shape[0]))
-
-        for i in range(len(tree)):
-            node = tree[i]
-            current_node, probabilities = DecisionTreeZhoumath._traverse_next_node(node, X, indices, current_node,
-                                                                                   probabilities, i)
-        return np.vstack([1 - probabilities, probabilities]).T
-
-    @staticmethod
-    def _traverse_next_node(node, X, indices, current_node, probabilities, i):
-        """
-        Navigate to the next node in the decision tree.
-        :param node: Current node in the decision tree.
-        :param X: Feature data.
-        :param indices: Indices of the samples.
-        :param current_node: Current node for each sample.
-        :param probabilities: Probabilities for each sample.
-        :param i: Index of the current node.
-        :return: Updated current node and probabilities.
-        """
-        if node.prob is not None:
-            probabilities[indices[current_node == i]] = node.prob[1]
-
-        if node.feature is not None:
-            index = indices[current_node == i]
-            feature_values = X[index, node.feature]
-
-            if node.null_direction == 'left':
-                left_condition = (feature_values <= node.threshold) | np.isnan(feature_values)
-            else:
-                left_condition = (feature_values <= node.threshold)
-
-            if node.left is not None and node.right is not None:
-                current_node[index[left_condition]] = node.left
-                current_node[index[~left_condition]] = node.right
-
-        return current_node, probabilities
+            data = np.ascontiguousarray(data)
+            
+            if np.any(self.categorial_module.is_cat_feature):
+                data = self.categorial_module._prepossess_catgorial_val(data)
+                    
+        data = np.ascontiguousarray(data)
+        predictor = Predictor(data, tree)
+        return predictor._get_prediction()
 
     def replace_features_with_column_names(self, column_names):
         """
         Replace feature indices in the tree with column names.
         :param column_names: List of column names.
         """
-        for node in self.tree:
-            if "feature" in node and isinstance(node["feature"], int):
-                node["feature"] = column_names[node["feature"]]
+        for i, node in enumerate(self.tree):
+            if node.feature is not None and type(node.feature) != str:
+                node.feature = column_names[node.feature]
+                print(f'Node {i}, feature {node.feature}, threshold {node.threshold} left {node.left}, right {node.right}.')
 
     def to_pkl(self, filename):
         """

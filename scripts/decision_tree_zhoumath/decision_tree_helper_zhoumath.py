@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 from numba import njit
+from decision_tree_zhoumath import DecisionTreeZhoumath
 
 # TreeNode class
 class TreeNode:
@@ -204,12 +205,16 @@ class ParentIndices:
         self.parent_sorted_indices = parent_sorted_indices
         self.parent_null_indices = parent_null_indices
         
-    def _filter_sorted_indices(self, row_indices):
+    def _filter_sorted_indices(self, row_indices, isnull):
         """
         Retrieve the sorted indices for the given rows.
         :param current_node: Current node being processed.
         :return: Filtered sorted indices for all features.
         """
+        if isnull:
+            filtered_indices = self._filter_sorted_indices_null(row_indices)
+            return filtered_indices
+            
         sorted_indices_flattened = ParentIndices._flatten_sorted_indices(self.parent_sorted_indices)
         filtered_sorted_indices_flattened = sorted_indices_flattened[np.in1d(sorted_indices_flattened, row_indices)]
         filtered_sorted_indices = ParentIndices._unflatten_sorted_indices(self.parent_sorted_indices,filtered_sorted_indices_flattened)
@@ -307,3 +312,124 @@ class FeatureImportances:
             feature_importances_df.index = col_names
             
         return feature_importances_df
+
+class CatgorialModule:
+    def __init__(self, data):
+        """
+        Initialize the CatgorialModule class to identify categorical features.
+        :param data: Feature data, can contain both numerical and categorical features.
+        """
+        self.is_cat_feature = np.zeros(data.shape[1], dtype=bool)
+
+        for i in range(data.shape[1]):
+            for j in range(data.shape[0]):
+                if type(data[j, i]) == str:
+                    self.is_cat_feature[i] = 1
+                    break
+                if ~np.isnan(np.float64(data[j, i])):
+                    break
+
+    def _prepossess_catgorial(self, data, labels, random_state):
+        """
+        Preprocess categorical features in the training data by encoding them based on their mean target value.
+        :param data: Feature data containing categorical features.
+        :param labels: Target labels corresponding to the data.
+        :param random_state: Random seed for reproducibility when adding perturbations to numeric features.
+        :return: Processed feature data with categorical features encoded as numerical values.
+        """
+        data = np.ascontiguousarray(data)
+        cat_features = np.zeros(shape=data.shape, dtype=object)
+        cat_features[:, self.is_cat_feature] = data[:, self.is_cat_feature]
+        cat_features = np.array(pd.DataFrame(cat_features).fillna("missing"))
+        self.cat_map = {}
+
+        for i in list(np.arange(cat_features.shape[1])[self.is_cat_feature]):
+            df = pd.DataFrame()
+            df['feature'] = cat_features[:, i]
+            df['labels'] = labels
+            group = df.groupby('feature').mean()['labels']
+            self.cat_map[i] = group
+
+        self.nafiller = labels.mean()
+        cat_features_trans = self._transform_catgorial(cat_features)
+        num_features = data
+        num_features[:, self.is_cat_feature] = 0
+        num_features = DecisionTreeZhoumath._add_perturbation(num_features, random_state)
+        data = num_features + cat_features_trans
+        data = np.ascontiguousarray(data.astype(np.float64))
+        return data
+
+    def _prepossess_catgorial_val(self, data):
+        """
+        Preprocess categorical features in the validation data by encoding them based on their mapping from training data.
+        :param data: Validation feature data containing categorical features.
+        :return: Processed validation feature data with categorical features encoded as numerical values.
+        """
+        data = np.ascontiguousarray(data)
+        cat_features = np.zeros(shape=data.shape, dtype=object)
+        cat_features[:, self.is_cat_feature] = data[:, self.is_cat_feature]
+        cat_features = np.array(pd.DataFrame(cat_features).fillna("missing"))
+        cat_features_trans = self._transform_catgorial(cat_features)
+        num_features = data
+        num_features[:, self.is_cat_feature] = 0
+        val_data = num_features + cat_features_trans
+        val_data = np.ascontiguousarray(val_data.astype(np.float64))
+        return val_data
+
+    def _transform_catgorial(self, cat_features):
+        """
+        Transform categorical features into numerical values using mappings learned during training.
+        :param cat_features: Feature data containing categorical features.
+        :return: Transformed categorical features as numerical values.
+        """
+        for i in list(np.arange(cat_features.shape[1])[self.is_cat_feature]):
+            cat_features_i_df = pd.DataFrame(cat_features[:, i])
+            cat_map_i_df = pd.DataFrame(self.cat_map[i])
+            cat_features_i_df = cat_features_i_df.merge(cat_map_i_df, how='left',
+                                                        left_on=0, right_index=True)
+            cat_features_i_df = cat_features_i_df.fillna(self.nafiller)
+            cat_features[:, i] = cat_features_i_df['labels']
+
+        cat_features = cat_features.astype(np.float64)
+
+        return cat_features
+
+
+class Predictor:
+    def __init__(self, data, tree):
+        """
+        Initialize the Predictor class to make predictions using a decision tree.
+        :param data: Feature data for which predictions are to be made.
+        :param tree: Decision tree structure used to make predictions.
+        """
+        self.data = data
+        self.tree = tree
+        self.indices = np.arange(self.data.shape[0], dtype=int)
+        self.current_node = np.zeros((self.data.shape[0]), dtype=int)
+        self.probabilities = np.zeros((self.data.shape[0]))
+
+    def _get_prediction(self):
+        """
+        Traverse the decision tree to generate probability predictions for the feature data.
+        :return: A 2D array containing the probability predictions for each class.
+        """
+        for i in range(len(self.tree)):
+            node = self.tree[i]
+
+            if node.prob is not None:
+                self.probabilities[self.indices[self.current_node == i]] = node.prob[1]
+
+            if node.feature is not None:
+                index = self.indices[self.current_node == i]
+                feature_values = self.data[index, node.feature]
+
+                if node.null_direction == 'left':
+                    left_condition = (feature_values <= node.threshold) | np.isnan(feature_values)
+                else:
+                    left_condition = (feature_values <= node.threshold)
+
+                if node.left is not None and node.right is not None:
+                    self.current_node[index[left_condition]] = node.left
+                    self.current_node[index[~left_condition]] = node.right
+
+        return np.vstack([1 - self.probabilities, self.probabilities]).T

@@ -1,4 +1,4 @@
-# Decision Tree Zhoumath Implementation - Zhoushus (v0.1.11)
+# Decision Tree Zhoumath Implementation - Zhoushus (v0.1.12)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -6,7 +6,7 @@ This project provides a basic implementation of a decision tree and tree-based e
 ### Features
 - **Core Features**:
   - Custom decision tree model implementation (`DecisionTreeZhoumath`).
-  - Calculation of entropy and data splitting based on feature thresholds.
+  - Calculation of entropy, Gini impurity, and data splitting based on feature thresholds.
   - Example scripts for training, testing, and evaluating the model.
   - Performance evaluation using ROC-AUC metrics.
   - Utility functions for data ranking based on frequency bins.
@@ -71,6 +71,14 @@ This project provides a basic implementation of a decision tree and tree-based e
     - Enhanced `_iterate_features` function to better handle missing values and optimize feature iteration for more efficient decision tree building.
     - Improved `_init_root_collection_node` to simplify root node initialization, reducing code redundancy.
     - Made early stopping evaluation more transparent by refining output messages and evaluation logic.
+
+  - **New in v0.1.12**:
+    - Introduced `random_column_rate` parameter, enabling random feature selection during node splitting to prevent overfitting and add randomness, similar to random forest.
+    - Added `CatgorialModule` to support categorical features, including the ability to handle mixed data types and perform automatic encoding for categorical variables.
+    - Improved missing value handling with enhanced logic for assigning missing values during splitting, ensuring better performance with mixed-type datasets.
+    - Updated `_choose_best_split` and `_iterate_features` functions to integrate random feature selection and categorical feature handling, improving efficiency and robustness.
+    - Refactored prediction logic into a new `Predictor` class to make the prediction process modular and easily extendable.
+    - Enhanced model explainability by adding feature names to nodes with `replace_features_with_column_names`, allowing easier interpretation of decision paths.
 
 ## Installation
 ### Prerequisites
@@ -144,7 +152,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.1.11**
+Current version: **0.1.12**
 
 ## Author
 - **Zhoushus**
@@ -154,3 +162,4 @@ Current version: **0.1.11**
 ## Acknowledgements
 - `scikit-learn` for providing easy access to datasets and evaluation tools.
 - The open-source community for ongoing inspiration and support.
+

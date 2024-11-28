@@ -17,7 +17,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # DecisionTree class
 class DecisionTreeZhoumath:
-    def __init__(self, split_criterion, search_method, max_depth=None, pos_weight=1, random_column_rate=1):
+    def __init__(self, split_criterion, search_method, max_depth=None, pos_weight=1, random_column_rate=1,
+                 min_split_sample_rate=0, min_leaf_sample_rate=0, verbose=True):
         """
         Initialize the decision tree.
         :param split_criterion: Criterion for splitting ("entropy_gain", "entropy_gain_ratio", or "gini").
@@ -39,9 +40,11 @@ class DecisionTreeZhoumath:
         self.max_depth = max_depth
         self.pos_weight = pos_weight
         self.random_column_rate = random_column_rate
+        self.min_split_sample_rate = min_split_sample_rate
+        self.min_leaf_sample_rate = min_leaf_sample_rate
         self.tree = None
         self.gini = 0
-        
+        self.verbose = verbose
         
         if self.split_criterion == 'gini':
             self.gini = 1
@@ -99,13 +102,16 @@ class DecisionTreeZhoumath:
         if early_stop_rounds and self.search_method != 'bfs':
             raise ValueError("Early Stopping requires 'bfs' as the search method.")
 
-        if (val_data is not None) and (val_labels is not None) and early_stop_rounds > 0:
-            print("Early stop mode is opened. Search method can only be BFS.")
+        if (val_data is not None) and (val_labels is not None) and early_stop_rounds is not None:
+            if self.verbose:
+                print("Early stop mode is opened. Search method can only be BFS.")
+                
             val_data = np.ascontiguousarray(val_data)
             val_labels = np.ascontiguousarray(val_labels)
             early_stopper = EarlyStopper(val_data=val_data,
                                          val_labels=val_labels,
-                                         early_stop_rounds=early_stop_rounds)
+                                         early_stop_rounds=early_stop_rounds,
+                                         verbose=self.verbose)
             self.search_method = 'bfs'
             self.best_tree = []
         else:
@@ -115,9 +121,13 @@ class DecisionTreeZhoumath:
         self.data = data
         self.labels = labels
         self.feature_importances = FeatureImportances(data.shape[1])
+        self.feature_importances_cache = FeatureImportances(data.shape[1])
         self.tree = self._build_tree(early_stopper)
         self.data = None
         self.labels = None
+        
+        if early_stopper is None:
+            self.feature_importances = self.feature_importances_cache
 
     @staticmethod
     def _add_perturbation(data, random_state):
@@ -157,22 +167,24 @@ class DecisionTreeZhoumath:
 
             if early_stopper is not None and current_node.depth > early_stopper.current_max_depth:
                 early_stop_triggered = early_stopper._evaluate_early_stop(self, current_node, tree)
-
+                
                 if early_stop_triggered:
-                    return self.best_tree
-
-            if (self.max_depth is not None and current_node.depth >= self.max_depth) or np.unique(labels).size == 1:
-                probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
-                current_tree_node = TreeNode(prob=probabilities)
-                DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
+                    return self.best_tree.copy()
+                
+            min_split_sample_rate_condition = current_node.row_indices.shape[0] < (self.labels.shape[0] * self.min_split_sample_rate)
+            
+            if (self.max_depth is not None and current_node.depth >= self.max_depth) or np.unique(labels).size == 1 or min_split_sample_rate_condition:
+                DecisionTreeZhoumath._finallize_node(labels, tree, current_node)
                 continue
 
             current_best_status, filtered_indices = self._choose_best_split(current_node)
+            
+            min_right_leaf_sample_rate_condition = (current_best_status.right_indices.shape[0]) < (self.labels.shape[0] * self.min_leaf_sample_rate)
+            min_left_leaf_sample_rate_condition = (current_best_status.left_indices.shape[0]) < (self.labels.shape[0] * self.min_leaf_sample_rate)
+            min_leaf_sample_rate_condition = min_right_leaf_sample_rate_condition or min_left_leaf_sample_rate_condition
 
-            if current_best_status.best_feature is None or current_best_status.best_metric <= 0:
-                probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
-                current_tree_node = TreeNode(prob=probabilities)
-                DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
+            if current_best_status.best_feature is None or current_best_status.best_metric <= 0 or min_leaf_sample_rate_condition:
+                DecisionTreeZhoumath._finallize_node(labels, tree, current_node)
                 continue
 
             current_tree_node = TreeNode(feature=current_best_status.best_feature,
@@ -184,7 +196,6 @@ class DecisionTreeZhoumath:
                 current_tree_node.prob = probabilities
 
             DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
-            
             right_node = CollectionNode(row_indices=current_best_status.right_indices,
                                         depth=current_node.depth + 1,
                                         parent_indices=filtered_indices,
@@ -195,17 +206,16 @@ class DecisionTreeZhoumath:
                                        parent_indices=filtered_indices,
                                        parent_index=current_node.node_index,
                                        child_direction="left")
-            
             collection.append(right_node)
             collection.append(left_node)
 
         if early_stopper is not None:
+            current_node.depth += 1
             early_stop_triggered = early_stopper._evaluate_early_stop(self, current_node, tree)
-
             if early_stop_triggered:
-                return self.best_tree
+                return self.best_tree.copy()
 
-        return tree
+        return tree if early_stopper is None else self.best_tree.copy()
     
     def _init_root_collection_node(self):
         """
@@ -219,6 +229,14 @@ class DecisionTreeZhoumath:
                                               row_indices=np.arange(self.labels.shape[0]),
                                               parent_indices=root_indices)
         return root_collection_node
+    
+    @staticmethod
+    def _finallize_node(labels,tree, current_node):
+        from decision_tree_helper_zhoumath import TreeNode
+        
+        probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
+        current_tree_node = TreeNode(prob=probabilities)
+        DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
 
     @staticmethod
     @njit
@@ -272,7 +290,7 @@ class DecisionTreeZhoumath:
             
         current_best_status = BestStatus()
         current_best_status._renew_best_status(metrics, filtered_indices.parent_sorted_indices, self.data)
-        self.feature_importances._renew_feature_importances(current_best_status)
+        self.feature_importances_cache._renew_feature_importances(current_best_status)
         
         return current_best_status, filtered_indices
     
@@ -286,9 +304,7 @@ class DecisionTreeZhoumath:
         filtered_indices = current_node.parent_indices._filter_sorted_indices(current_node.row_indices, isnull)
         filtered_sorted_labels = np.ascontiguousarray(self.labels[filtered_indices.parent_sorted_indices])
         base_metric = DecisionTreeZhoumath._calculate_base_metric(filtered_sorted_labels[:, 0], self.pos_weight, self.gini)
-        
         return filtered_indices, filtered_sorted_labels, base_metric
-        
 
     @staticmethod
     @njit

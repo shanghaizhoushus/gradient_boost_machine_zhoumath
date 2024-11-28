@@ -1,4 +1,4 @@
-# Decision Tree Zhoumath Implementation - Zhoushus (v0.1.12)
+# Decision Tree Zhoumath Implementation - Zhoushus (v0.2.0)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -79,6 +79,14 @@ This project provides a basic implementation of a decision tree and tree-based e
     - Updated `_choose_best_split` and `_iterate_features` functions to integrate random feature selection and categorical feature handling, improving efficiency and robustness.
     - Refactored prediction logic into a new `Predictor` class to make the prediction process modular and easily extendable.
     - Enhanced model explainability by adding feature names to nodes with `replace_features_with_column_names`, allowing easier interpretation of decision paths.
+	
+  - **New in v0.2.0**:
+    - Random Forest Implementation: Introduced `RandomForestZhoumath`, an implementation of Random Forest based on `DecisionTreeZhoumath`, with customizable parameters like the number of base trees, feature and sample rates, and early stopping based on AUC score.
+    - Early Stopping for Random Forest: Added support for early stopping in random forest training, saving the best models and preventing overfitting during ensemble training.
+    - Feature Importance for Random Forest: Added `FeatureImportancesRF` to track feature importance across multiple trees in the random forest model.
+    - Enhanced Model Flexibility: Improved flexibility of the Random Forest model with options for column-wise feature selection and more advanced handling of feature splits.
+    - Performance Optimizations: Optimized training and prediction logic for Random Forest to support large datasets and improve overall performance.
+
 
 ## Installation
 ### Prerequisites
@@ -114,16 +122,36 @@ or download the compressed document on GitHub.
 ├── requirements.txt
 ├── scripts
 │   └── decision_tree_zhoumath
-│       └── decision_tree_zhoumath.py
+│       ├── decision_tree_zhoumath.py
+│       ├── decision_tree_with_null_zhoumath.py
+│       └── decision_tree_helper_zhoumath.py
+│   └── random_forest_zhoumath
+│       ├── random_forest_zhoumath.py
+│       └── random_forest_helper_zhoumath.py
 └── examples
     ├── cal_ranking_by_freq.py
-    └── decision_tree_zhoumath_examples
-        └── decision_tree_zhoumath_example_script.py
+    ├── decision_tree_zhoumath_examples
+	│    	└── decision_tree_zhoumath_example_script.py
+	├── random_forest_zhoumath_examples
+	└── random_forest_zhoumath_example_script.py
 ```
 
 ### Key Files
 - **`decision_tree_zhoumath.py`**: Implements the `DecisionTreeZhoumath` class for custom decision tree modeling.
-- **`examples/`**: Example scripts demonstrating usage of the decision tree model, including evaluation with ROC-AUC, data ranking, and visualization of decision boundaries.
+- **`decision_tree_with_null_zhoumath.py`**: Implements the `DecisionTreeWithNullZhoumath` class, extending `DecisionTreeZhoumath` to handle datasets with missing values (`NaN`).
+- **`decision_tree_helper_zhoumath.py`**: Contains utility functions and helper methods for building and training decision trees, including feature selection and splitting logic.
+
+- **`random_forest_zhoumath.py`**: Implements the `RandomForestZhoumath` class, which builds an ensemble of decision trees for improved classification tasks.
+- **`random_forest_helper_zhoumath.py`**: Contains utility functions and helper methods specific to random forest, such as bootstrap sampling, model training, and feature importance calculation.
+
+- **`examples/`**: Example scripts demonstrating usage of the decision tree and random forest models.
+  - **`cal_ranking_by_freq.py`**: An example script for calculating model score ranking using frequency-based bins. Useful for understanding prediction distribution and model calibration.
+  - **`decision_tree_zhoumath_examples/`**: Contains examples for using `DecisionTreeZhoumath`, including a script for training and evaluating the decision tree model.
+    - **`decision_tree_zhoumath_example_script.py`**: A script demonstrating how to train and evaluate a decision tree using a dataset (e.g., Breast Cancer dataset).
+  - **`random_forest_zhoumath_examples/`**: Contains examples for using `RandomForestZhoumath`, including a script for training and evaluating a random forest model.
+    - **`random_forest_zhoumath_example_script.py`**: A script demonstrating how to train and evaluate a random forest using a dataset.
+
+
 
 ## Usage
 ### Example: Training and Evaluating the Decision Tree
@@ -152,7 +180,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.1.12**
+Current version: **0.2.0**
 
 ## Author
 - **Zhoushus**

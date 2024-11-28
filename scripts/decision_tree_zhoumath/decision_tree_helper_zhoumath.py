@@ -151,7 +151,7 @@ class BestStatus:
         return False
 
 class EarlyStopper:
-    def __init__(self, val_data, val_labels, early_stop_rounds, current_max_depth=0, currert_early_stop_rounds=0):
+    def __init__(self, val_data, val_labels, early_stop_rounds, verbose = False):
         """
         Initialize EarlyStopper.
         :param val_data: Validation feature data.
@@ -164,8 +164,9 @@ class EarlyStopper:
         self.val_labels = val_labels
         self.early_stop_rounds = early_stop_rounds
         self.best_auc = 0
-        self.current_max_depth = current_max_depth
-        self.currert_early_stop_rounds = currert_early_stop_rounds
+        self.current_max_depth = 0
+        self.currert_early_stop_rounds = 0
+        self.verbose = verbose
 
     def _evaluate_early_stop(self, decisiontreezhoumath, current_node, tree):
         """
@@ -179,18 +180,23 @@ class EarlyStopper:
         val_labels_pred = decisiontreezhoumath.predict_proba(self.val_data, tree)[:, 1]
         train_auc = roc_auc_score(decisiontreezhoumath.labels, labels_pred)
         val_auc = roc_auc_score(self.val_labels, val_labels_pred)
-        print(f'Current depth: {self.current_max_depth}, current train AUC: {train_auc:.3f}, current val AUC: {val_auc:.3f}')
         self.current_max_depth = current_node.depth
+        
+        if self.verbose:
+            print(f'Current depth: {self.current_max_depth - 1}, current train AUC: {train_auc:.3f}, current val AUC: {val_auc:.3f}')
 
         if val_auc > self.best_auc:
             self.best_auc = val_auc
             decisiontreezhoumath.best_tree = tree.copy()
+            decisiontreezhoumath.feature_importances._renew_cache(decisiontreezhoumath.feature_importances_cache)
+            self.feature_importances_cache = FeatureImportances(self.val_data.shape[1])
             self.currert_early_stop_rounds = 0
         else:
             self.currert_early_stop_rounds += 1
 
         if self.currert_early_stop_rounds >= self.early_stop_rounds:
-            print(f'Early stop triggered at depth {self.current_max_depth - 1}')
+            if self.verbose:
+                print(f'Early stop triggered at depth {self.current_max_depth - 1}')
             return True
 
         return False
@@ -297,6 +303,15 @@ class FeatureImportances:
         if beststatus.best_feature is not None:
             self.split_importance[beststatus.best_feature] += 1
             self.gain_importance[beststatus.best_feature] += beststatus.best_metric
+        
+    def _renew_cache(self, cache):
+        """
+        Renew the feature importances cache by adding the values from another cache.
+        :param cache: The cache of feature importances to add.
+        :return: None
+        """
+        self.split_importance += cache.split_importance
+        self.gain_importance += cache.gain_importance
     
     def get_feature_importances_df(self, col_names = None):
         """
@@ -393,7 +408,6 @@ class CatgorialModule:
         cat_features = cat_features.astype(np.float64)
 
         return cat_features
-
 
 class Predictor:
     def __init__(self, data, tree):

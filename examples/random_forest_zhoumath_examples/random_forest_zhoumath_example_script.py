@@ -24,7 +24,7 @@ sys.path.insert(0, script_dir)
 script_dir = os.path.abspath(os.path.join(os.getcwd(), '../../examples'))
 sys.path.insert(0, script_dir)
 from cal_ranking_by_freq import calRankingByFreq2
-from decision_tree_zhoumath import DecisionTreeZhoumath
+from random_forest_zhoumath import RandomForestZhoumath
 np.random.seed(42)
 
 #Warmup njit
@@ -43,10 +43,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # Load dataset
 data = load_breast_cancer(as_frame=True)
 X, y = data.data, data.target
-#X['mean texture']  = X['mean texture'] / 5
-#X['mean texture'] = X['mean texture'].apply(np.ceil).astype(str) 
 '''
-data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 110000)
+data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 11000)
 X = data.iloc[:, 1:]
 y = data.iloc[:, 0]
 '''
@@ -59,18 +57,28 @@ X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.
 X_train = np.array(X_train)
 mask = np.random.uniform(size = X_train.shape) > 1
 X_train[mask] = np.nan
-max_depth = 20
+num_base_trees = 1000
+rf_column_rate = 0.5
+rf_sample_rate = 0.5
+max_depth = 5
 split_criterion = 'entropy_gain'
 search_method = 'bfs'
-tree_model = DecisionTreeZhoumath(max_depth=max_depth,
-                                  split_criterion=split_criterion,
-                                  search_method=search_method)
+random_sample_rate = 1
+random_forest_model = RandomForestZhoumath(num_base_trees=num_base_trees,
+                                           rf_column_rate=rf_column_rate,
+                                           rf_sample_rate=rf_sample_rate,
+                                           max_depth=max_depth,
+                                           split_criterion=split_criterion,
+                                           search_method=search_method,
+                                           verbose_for_tree=False,
+                                           verbose_for_rf=True)
 tic = time.time()
-tree_model.fit(data=X_train,
-               labels=y_train,
-               val_data = X_val,
-               val_labels = y_val,
-               early_stop_rounds = 3)
+random_forest_model.fit(data=X_train,
+                        labels=y_train,
+                        val_data=X_val,
+                        val_labels=y_val,
+                        early_stop_rounds_for_tree=None,
+                        early_stop_rounds_for_forest=10)
 toc = time.time()
 gap = toc-tic
 print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f} seconds.')
@@ -80,7 +88,7 @@ X_test = np.array(X_test)
 mask = np.random.uniform(size = X_test.shape) > 1
 X_test[mask] = np.nan
 tic = time.time()
-y_test_pred = tree_model.predict_proba(X_test)[:, 1]
+y_test_pred = random_forest_model.predict_proba(X_test)[:, 1]
 toc = time.time()
 gap = toc-tic
 print(f'The decision-tree-with-null-zhoumath model is predicted in {gap:.5f} seconds.')
@@ -102,12 +110,12 @@ plt.legend()
 plt.show()
 
 # Get feature importances
-feature_importances_df = tree_model.feature_importances.get_feature_importances_df(data.data.columns)
+feature_importances_df = random_forest_model.feature_importances.get_feature_importances_df(data.data.columns)
 
 # Replace feature indices with column names
 df = pd.DataFrame(X_test)
 col_names = data.data.columns.tolist()
-tree_model.replace_features_with_column_names(col_names)
+random_forest_model.replace_features_with_column_names(col_names)
 print("Decision Tree is constructed successfully.")
 
 # Frequency-based ranking
@@ -117,4 +125,4 @@ tmp = calRankingByFreq2(df, label="y", score="y_pred", bins=10)
 print(tmp)
 
 #Save model to a pkl
-tree_model.to_pkl("tree_model_zhoumath.pkl") 
+random_forest_model.to_pkl("tree_model_zhoumath.pkl") 

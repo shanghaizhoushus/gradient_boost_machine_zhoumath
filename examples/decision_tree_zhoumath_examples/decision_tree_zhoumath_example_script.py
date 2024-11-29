@@ -57,10 +57,10 @@ X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.
 
 # Train the decision tree with null handled
 X_train = np.array(X_train)
-mask = np.random.uniform(size = X_train.shape) > 1
+mask = np.random.uniform(size = X_train.shape) > 0.9
 X_train[mask] = np.nan
 max_depth = 20
-split_criterion = 'entropy_gain'
+split_criterion = 'mse'
 search_method = 'bfs'
 tree_model = DecisionTreeZhoumath(max_depth=max_depth,
                                   split_criterion=split_criterion,
@@ -77,7 +77,7 @@ print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f
 
 # Predict and evaluate
 X_test = np.array(X_test)
-mask = np.random.uniform(size = X_test.shape) > 1
+mask = np.random.uniform(size = X_test.shape) > 0.9
 X_test[mask] = np.nan
 tic = time.time()
 y_test_pred = tree_model.predict_proba(X_test)[:, 1]

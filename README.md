@@ -1,4 +1,4 @@
-# Decision Tree Zhoumath Implementation - Zhoushus (v0.2.0)
+# Decision Tree Zhoumath Implementation - Zhoushus (v0.2.1)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -86,6 +86,12 @@ This project provides a basic implementation of a decision tree and tree-based e
     - Feature Importance for Random Forest: Added `FeatureImportancesRF` to track feature importance across multiple trees in the random forest model.
     - Enhanced Model Flexibility: Improved flexibility of the Random Forest model with options for column-wise feature selection and more advanced handling of feature splits.
     - Performance Optimizations: Optimized training and prediction logic for Random Forest to support large datasets and improve overall performance.
+	
+  - **New in v0.2.1**:  
+	- MSE as Split Criterion: Added support for MSE (Mean Squared Error) as a split criterion, enabling more effective handling of regression tasks.  
+	- Regression Tree Support: Enhanced decision tree with support for regression tasks, allowing for more accurate predictions of continuous variables.  
+	- Early Stopping with MSE: Introduced early stopping functionality for regression tasks based on MSE, preventing overfitting and improving model performance during training.   
+	- Optimization of Training Process: Optimized the decision tree fitting process, improving efficiency and scalability for large datasets, especially in regression tasks.
 
 
 ## Installation
@@ -180,7 +186,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.2.0**
+Current version: **0.2.1**
 
 ## Author
 - **Zhoushus**

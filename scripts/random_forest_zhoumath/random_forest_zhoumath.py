@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # RandomForest class
 class RandomForestZhoumath(DecisionTreeZhoumath):
-    def __init__(self, num_base_trees, rf_column_rate, rf_sample_rate, split_criterion, search_method, max_depth=None,
+    def __init__(self, num_base_trees, rf_column_rate, rf_sample_rate, task, split_criterion, search_method, max_depth=None,
                  pos_weight=1, random_column_rate=1,min_split_sample_rate=0, min_leaf_sample_rate=0, verbose_for_tree=False,
                  verbose_for_rf = False):
         """
@@ -40,7 +40,7 @@ class RandomForestZhoumath(DecisionTreeZhoumath):
         :param verbose_for_rf: Boolean flag to enable verbose logging for the random forest.
         :return: None
         """
-        super().__init__(split_criterion, search_method, max_depth, pos_weight,
+        super().__init__(task, split_criterion, search_method, max_depth, pos_weight,
                          random_column_rate, min_split_sample_rate, min_leaf_sample_rate)
         
         self.num_base_trees = num_base_trees
@@ -106,7 +106,8 @@ class RandomForestZhoumath(DecisionTreeZhoumath):
         :return: Boolean indicating whether early stopping was triggered.
         """
         np.random.seed(self.random_state + i)
-        current_decision_tree = DecisionTreeZhoumath(split_criterion=self.split_criterion,
+        current_decision_tree = DecisionTreeZhoumath(task = self.task,
+                                                     split_criterion=self.split_criterion,
                                                      search_method=self.search_method,
                                                      max_depth=self.max_depth,
                                                      pos_weight=self.pos_weight,

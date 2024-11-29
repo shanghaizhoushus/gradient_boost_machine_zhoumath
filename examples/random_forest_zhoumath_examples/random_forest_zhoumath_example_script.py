@@ -57,16 +57,17 @@ X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.
 X_train = np.array(X_train)
 mask = np.random.uniform(size = X_train.shape) > 1
 X_train[mask] = np.nan
-num_base_trees = 1000
+num_base_trees = 100
 rf_column_rate = 0.5
 rf_sample_rate = 0.5
-max_depth = 5
-split_criterion = 'entropy_gain'
+max_depth = 10
+split_criterion = 'mse'
 search_method = 'bfs'
-random_sample_rate = 1
+task = 'regression'
 random_forest_model = RandomForestZhoumath(num_base_trees=num_base_trees,
                                            rf_column_rate=rf_column_rate,
                                            rf_sample_rate=rf_sample_rate,
+                                           task = task,
                                            max_depth=max_depth,
                                            split_criterion=split_criterion,
                                            search_method=search_method,
@@ -77,7 +78,7 @@ random_forest_model.fit(data=X_train,
                         labels=y_train,
                         val_data=X_val,
                         val_labels=y_val,
-                        early_stop_rounds_for_tree=None,
+                        early_stop_rounds_for_tree=1,
                         early_stop_rounds_for_forest=10)
 toc = time.time()
 gap = toc-tic

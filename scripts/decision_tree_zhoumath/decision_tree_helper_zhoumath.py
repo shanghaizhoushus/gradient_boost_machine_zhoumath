@@ -163,7 +163,7 @@ class EarlyStopper:
         self.val_data = val_data
         self.val_labels = val_labels
         self.early_stop_rounds = early_stop_rounds
-        self.best_auc = 0
+        self.best_metric = -np.inf
         self.current_max_depth = 0
         self.currert_early_stop_rounds = 0
         self.verbose = verbose
@@ -171,22 +171,29 @@ class EarlyStopper:
     def _evaluate_early_stop(self, decisiontreezhoumath, current_node, tree):
         """
         Evaluate whether to trigger early stopping.
-        :param decisiontreezhoumath: Instance of the decision tree.
-        :param current_node: Current node being processed.
-        :param tree: Current tree.
+        :param decisiontreezhoumath: Instance of the DecisionTreeZhoumath class used for model training and prediction.
+        :param current_node: Current node being processed in the decision tree.
+        :param tree: Current decision tree being evaluated for early stopping.
         :return: True if early stopping should be triggered, otherwise False.
         """
+        self.current_max_depth = current_node.depth
         labels_pred = decisiontreezhoumath.predict_proba(decisiontreezhoumath.data, tree)[:, 1]
         val_labels_pred = decisiontreezhoumath.predict_proba(self.val_data, tree)[:, 1]
-        train_auc = roc_auc_score(decisiontreezhoumath.labels, labels_pred)
-        val_auc = roc_auc_score(self.val_labels, val_labels_pred)
-        self.current_max_depth = current_node.depth
         
-        if self.verbose:
-            print(f'Current depth: {self.current_max_depth - 1}, current train AUC: {train_auc:.3f}, current val AUC: {val_auc:.3f}')
+        if decisiontreezhoumath.task == 'classification':
+            train_metric = roc_auc_score(decisiontreezhoumath.labels, labels_pred)
+            val_metric = roc_auc_score(self.val_labels, val_labels_pred)
+            if self.verbose:
+                print(f'Current depth: {self.current_max_depth - 1}, current train AUC: {train_metric:.3f}, current val AUC: {val_metric:.3f}')
+        
+        if decisiontreezhoumath.task == 'regression':
+            train_metric = -np.mean((decisiontreezhoumath.labels - labels_pred) ** 2)
+            val_metric = -np.mean((self.val_labels - val_labels_pred) ** 2)
+            if self.verbose:
+                print(f'Current depth: {self.current_max_depth - 1}, current train MSE: {-train_metric:.3f}, current val MSE: {-val_metric:.3f}')
 
-        if val_auc > self.best_auc:
-            self.best_auc = val_auc
+        if val_metric > self.best_metric:
+            self.best_metric = val_metric
             decisiontreezhoumath.best_tree = tree.copy()
             decisiontreezhoumath.feature_importances._renew_cache(decisiontreezhoumath.feature_importances_cache)
             self.feature_importances_cache = FeatureImportances(self.val_data.shape[1])
@@ -214,8 +221,9 @@ class ParentIndices:
     def _filter_sorted_indices(self, row_indices, isnull):
         """
         Retrieve the sorted indices for the given rows.
-        :param current_node: Current node being processed.
-        :return: Filtered sorted indices for all features.
+        :param row_indices: Indices of rows to be filtered.
+        :param isnull: Boolean flag indicating whether to filter by null values.
+        :return: A ParentIndices object containing filtered sorted indices and null indices.
         """
         if isnull:
             filtered_indices = self._filter_sorted_indices_null(row_indices)
@@ -232,8 +240,8 @@ class ParentIndices:
     def _flatten_sorted_indices(parent_sorted_indices):
         """
         Flatten the sorted indices for easier processing.
-        :param parent_sorted_indices: Sorted indices of the parent node.
-        :return: Flattened sorted indices.
+        :param parent_sorted_indices: A 2D array of sorted indices from the parent node.
+        :return: A 1D array of flattened sorted indices for all features.
         """
         parent_sorted_indices_t = parent_sorted_indices.T
         parent_sorted_indices_t = np.ascontiguousarray(parent_sorted_indices_t)
@@ -344,7 +352,7 @@ class CatgorialModule:
                 if ~np.isnan(np.float64(data[j, i])):
                     break
 
-    def _prepossess_catgorial(self, data, labels, random_state):
+    def _preprocess_catgorial(self, data, labels, random_state):
         """
         Preprocess categorical features in the training data by encoding them based on their mean target value.
         :param data: Feature data containing categorical features.
@@ -374,7 +382,7 @@ class CatgorialModule:
         data = np.ascontiguousarray(data.astype(np.float64))
         return data
 
-    def _prepossess_catgorial_val(self, data):
+    def _preprocess_catgorial_val(self, data):
         """
         Preprocess categorical features in the validation data by encoding them based on their mapping from training data.
         :param data: Validation feature data containing categorical features.

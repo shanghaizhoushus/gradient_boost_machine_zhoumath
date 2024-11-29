@@ -8,6 +8,7 @@ Created on Thu Nov 28 21:53:52 2024
 import sys
 import os
 import copy
+import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 script_dir = os.path.abspath(os.path.join(os.getcwd(), '../../scripts/decision_tree_zhoumath'))
@@ -44,14 +45,21 @@ class EarlyStopperRF(EarlyStopper):
         self.feature_importances_cache._renew_feature_importances(current_decision_tree)
         labels_pred = randomforestzhoumath.predict_proba(randomforestzhoumath.data)[:, 1]
         val_labels_pred = randomforestzhoumath.predict_proba(self.val_data)[:, 1]
-        train_auc = roc_auc_score(randomforestzhoumath.labels, labels_pred)
-        val_auc = roc_auc_score(self.val_labels, val_labels_pred)
         
-        if self.verbose:
-            print(f'Current depth: {self.current_trees}, current train AUC: {train_auc:.3f}, current val AUC: {val_auc:.3f}')
-
-        if val_auc > self.best_auc:
-            self.best_auc = val_auc
+        if randomforestzhoumath.task == 'classification':
+            train_metric = roc_auc_score(randomforestzhoumath.labels, labels_pred)
+            val_metric = roc_auc_score(self.val_labels, val_labels_pred)
+            if self.verbose:
+                print(f'Current trees: {self.current_trees}, current train AUC: {train_metric:.3f}, current val AUC: {val_metric:.3f}')
+        
+        if randomforestzhoumath.task == 'regression':
+            train_metric = -np.mean((randomforestzhoumath.labels - labels_pred) ** 2)
+            val_metric = -np.mean((self.val_labels - val_labels_pred) ** 2)
+            if self.verbose:
+                print(f'Current trees : {self.current_trees - 1}, current train MSE: {-train_metric:.3f}, current val MSE: {-val_metric:.3f}')
+            
+        if val_metric > self.best_metric:
+            self.best_metric = val_metric
             randomforestzhoumath.best_tree_models = copy.deepcopy(randomforestzhoumath.tree_models)
             randomforestzhoumath.feature_importances._renew_cache(self.feature_importances_cache)
             self.feature_importances_cache = FeatureImportancesRF(self.val_data.shape[1])

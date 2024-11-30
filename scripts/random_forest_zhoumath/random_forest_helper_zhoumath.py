@@ -8,12 +8,16 @@ Created on Thu Nov 28 21:53:52 2024
 import sys
 import os
 import copy
+import warnings
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 script_dir = os.path.abspath(os.path.join(os.getcwd(), '../../scripts/decision_tree_zhoumath'))
 sys.path.insert(0, script_dir)
 from decision_tree_helper_zhoumath import EarlyStopper, FeatureImportances
+
+# Settings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # EarlyStopperRF Class
 class EarlyStopperRF(EarlyStopper):
@@ -31,7 +35,9 @@ class EarlyStopperRF(EarlyStopper):
                        early_stop_rounds=early_stop_rounds,
                        verbose=verbose)
         self.current_trees = 0
-        self.currert_early_stop_rounds = 0
+        self.current_early_stop_rounds = 0
+        self.labels_preds = []
+        self.val_labels_preds = []
         self.feature_importances_cache = FeatureImportancesRF(val_data.shape[1])
 
     def _evaluate_early_stop(self, randomforestzhoumath, current_decision_tree):
@@ -43,31 +49,35 @@ class EarlyStopperRF(EarlyStopper):
         """
         self.current_trees += 1
         self.feature_importances_cache._renew_feature_importances(current_decision_tree)
-        labels_pred = randomforestzhoumath.predict_proba(randomforestzhoumath.data)[:, 1]
-        val_labels_pred = randomforestzhoumath.predict_proba(self.val_data)[:, 1]
+        tree_labels_pred = current_decision_tree.predict_proba(randomforestzhoumath.data)
+        self.labels_preds.append(tree_labels_pred)
+        labels_preds_mean = np.vstack(self.labels_preds).mean(axis = 0)
+        tree_val_labels_pred = current_decision_tree.predict_proba(self.val_data)
+        self.val_labels_preds.append(tree_val_labels_pred)
+        val_labels_preds_mean = np.vstack(self.val_labels_preds).mean(axis = 0)
         
         if randomforestzhoumath.task == 'classification':
-            train_metric = roc_auc_score(randomforestzhoumath.labels, labels_pred)
-            val_metric = roc_auc_score(self.val_labels, val_labels_pred)
+            train_metric = roc_auc_score(randomforestzhoumath.labels, labels_preds_mean)
+            val_metric = roc_auc_score(self.val_labels, val_labels_preds_mean)
             if self.verbose:
                 print(f'Current trees: {self.current_trees}, current train AUC: {train_metric:.3f}, current val AUC: {val_metric:.3f}')
         
         if randomforestzhoumath.task == 'regression':
-            train_metric = -np.mean((randomforestzhoumath.labels - labels_pred) ** 2)
-            val_metric = -np.mean((self.val_labels - val_labels_pred) ** 2)
+            train_metric = -np.mean((randomforestzhoumath.labels - labels_preds_mean) ** 2)
+            val_metric = -np.mean((self.val_labels - val_labels_preds_mean) ** 2)
             if self.verbose:
-                print(f'Current trees : {self.current_trees - 1}, current train MSE: {-train_metric:.3f}, current val MSE: {-val_metric:.3f}')
-            
+                print(f'Current trees : {self.current_trees}, current train MSE: {-train_metric:.3f}, current val MSE: {-val_metric:.3f}')
+        
         if val_metric > self.best_metric:
             self.best_metric = val_metric
             randomforestzhoumath.best_tree_models = copy.deepcopy(randomforestzhoumath.tree_models)
             randomforestzhoumath.feature_importances._renew_cache(self.feature_importances_cache)
             self.feature_importances_cache = FeatureImportancesRF(self.val_data.shape[1])
-            self.currert_early_stop_rounds = 0
+            self.current_early_stop_rounds= 0
         else:
-            self.currert_early_stop_rounds += 1
+            self.current_early_stop_rounds += 1
 
-        if self.currert_early_stop_rounds >= self.early_stop_rounds:
+        if self.current_early_stop_rounds >= self.early_stop_rounds:
             if self.verbose:
                 print(f'Early stop triggered at num trees {self.current_trees}')
             return True

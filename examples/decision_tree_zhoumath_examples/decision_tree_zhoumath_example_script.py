@@ -57,14 +57,17 @@ X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.
 
 # Train the decision tree with null handled
 X_train = np.array(X_train)
-mask = np.random.uniform(size = X_train.shape) > 0.9
+mask = np.random.uniform(size = X_train.shape) > 1
 X_train[mask] = np.nan
 max_depth = 20
 split_criterion = 'mse'
 search_method = 'bfs'
-tree_model = DecisionTreeZhoumath(max_depth=max_depth,
+task = 'classification'
+tree_model = DecisionTreeZhoumath(task=task,
+                                  max_depth=max_depth,
                                   split_criterion=split_criterion,
-                                  search_method=search_method)
+                                  search_method=search_method,
+                                  verbose=True)
 tic = time.time()
 tree_model.fit(data=X_train,
                labels=y_train,
@@ -77,10 +80,10 @@ print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f
 
 # Predict and evaluate
 X_test = np.array(X_test)
-mask = np.random.uniform(size = X_test.shape) > 0.9
+mask = np.random.uniform(size = X_test.shape) > 1
 X_test[mask] = np.nan
 tic = time.time()
-y_test_pred = tree_model.predict_proba(X_test)[:, 1]
+y_test_pred = tree_model.predict_proba(X_test)
 toc = time.time()
 gap = toc-tic
 print(f'The decision-tree-with-null-zhoumath model is predicted in {gap:.5f} seconds.')

@@ -130,7 +130,7 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
         left_probs = (np.arange(1, num_rows) / num_rows)
         right_probs = (np.arange(num_rows - 1, 0, -1) / num_rows)
 
-        if split_criterion == 'entropy' or split_criterion == 'entropy_gain':
+        if split_criterion == 'entropy_gain' or split_criterion == 'entropy_gain_ratio':
             left_entropy = -left_zero_rate * np.log2(left_zero_rate + 1e-9) - pos_weight *  left_one_rate * np.log2(left_one_rate + 1e-9)
             right_entropy = -right_zero_rate * np.log2(right_zero_rate + 1e-9) - pos_weight * right_one_rate * np.log2(right_one_rate + 1e-9)
             weighted_entropy = left_probs * left_entropy + right_probs * right_entropy

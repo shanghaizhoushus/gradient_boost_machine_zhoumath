@@ -21,10 +21,12 @@ script_dir = os.path.abspath(os.path.join(os.getcwd(), '../../scripts/decision_t
 sys.path.insert(0, script_dir)
 script_dir = os.path.abspath(os.path.join(os.getcwd(), '../../scripts/random_forest_zhoumath'))
 sys.path.insert(0, script_dir)
+script_dir = os.path.abspath(os.path.join(os.getcwd(), '../../scripts/gradient_boost_zhoumath'))
+sys.path.insert(0, script_dir)
 script_dir = os.path.abspath(os.path.join(os.getcwd(), '../../examples'))
 sys.path.insert(0, script_dir)
 from cal_ranking_by_freq import calRankingByFreq2
-from random_forest_zhoumath import RandomForestZhoumath
+from gradient_boost_zhoumath import GradientBoostZhoumath
 np.random.seed(42)
 
 
@@ -45,7 +47,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 data = load_breast_cancer(as_frame=True)
 X, y = data.data, data.target
 '''
-data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 11000)
+data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 110000)
 X = data.iloc[:, 1:]
 y = data.iloc[:, 0]
 '''
@@ -58,29 +60,31 @@ X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.
 X_train = np.array(X_train)
 mask = np.random.uniform(size = X_train.shape) > 1
 X_train[mask] = np.nan
+learning_rate = 0.2
 num_base_trees = 1000
 ensemble_column_rate = 0.5
 ensemble_sample_rate = 0.5
-max_depth = 10
+max_depth = 3
 split_criterion = 'mse'
 search_method = 'bfs'
 task = 'classification'
-random_forest_model = RandomForestZhoumath(num_base_trees=num_base_trees,
-                                           ensemble_column_rate=ensemble_column_rate,
-                                           ensemble_sample_rate=ensemble_sample_rate,
-                                           task = task,
-                                           max_depth=max_depth,
-                                           split_criterion=split_criterion,
-                                           search_method=search_method,
-                                           verbose_for_tree=False,
-                                           verbose_for_ensemble=True)
-tic = time.time()
-random_forest_model.fit(data=X_train,
-                        labels=y_train,
-                        val_data=X_val,
-                        val_labels=y_val,
-                        early_stop_rounds_for_tree=1,
-                        early_stop_rounds_for_forest=10)
+gradient_boost_model = GradientBoostZhoumath(learning_rate = learning_rate,
+                                             num_base_trees=num_base_trees,
+                                             ensemble_column_rate=ensemble_column_rate,
+                                             ensemble_sample_rate=ensemble_sample_rate,
+                                             task = task,
+                                             max_depth=max_depth,
+                                             split_criterion=split_criterion,
+                                             search_method=search_method,
+                                             verbose_for_tree=False,
+                                             verbose_for_ensemble=True)
+tic = time.time()   
+gradient_boost_model.fit(data=X_train,
+                         labels=y_train,
+                         val_data=X_val,
+                         val_labels=y_val,
+                         early_stop_rounds_for_tree=1,
+                         early_stop_rounds_for_forest=50)
 toc = time.time()
 gap = toc-tic
 print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f} seconds.')
@@ -90,7 +94,7 @@ X_test = np.array(X_test)
 mask = np.random.uniform(size = X_test.shape) > 1
 X_test[mask] = np.nan
 tic = time.time()
-y_test_pred = random_forest_model.predict_proba(X_test)
+y_test_pred = gradient_boost_model.predict_proba(X_test)
 toc = time.time()
 gap = toc-tic
 print(f'The decision-tree-with-null-zhoumath model is predicted in {gap:.5f} seconds.')
@@ -112,7 +116,7 @@ plt.legend()
 plt.show()
 
 # Get feature importances
-feature_importances_df = random_forest_model.feature_importances.get_feature_importances_df(data.data.columns)
+feature_importances_df = gradient_boost_model.feature_importances.get_feature_importances_df(data.data.columns)
 
 # Replace feature indices with column names
 df = pd.DataFrame(X_test)
@@ -122,4 +126,4 @@ tmp = calRankingByFreq2(df, label="y", score="y_pred", bins=10)
 print(tmp)
 
 #Save model to a pkl
-random_forest_model.to_pkl("random_forest_model_zhoumath.pkl") 
+gradient_boost_model.to_pkl("gradient_boost_model_zhoumath.pkl") 

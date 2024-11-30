@@ -150,6 +150,7 @@ class BestStatus:
             
         return False
 
+# EarlyStopper Class
 class EarlyStopper:
     def __init__(self, val_data, val_labels, early_stop_rounds, verbose = False):
         """
@@ -165,7 +166,7 @@ class EarlyStopper:
         self.early_stop_rounds = early_stop_rounds
         self.best_metric = -np.inf
         self.current_max_depth = 0
-        self.currert_early_stop_rounds = 0
+        self.current_early_stop_rounds = 0
         self.verbose = verbose
 
     def _evaluate_early_stop(self, decisiontreezhoumath, current_node, tree):
@@ -177,8 +178,8 @@ class EarlyStopper:
         :return: True if early stopping should be triggered, otherwise False.
         """
         self.current_max_depth = current_node.depth
-        labels_pred = decisiontreezhoumath.predict_proba(decisiontreezhoumath.data, tree)[:, 1]
-        val_labels_pred = decisiontreezhoumath.predict_proba(self.val_data, tree)[:, 1]
+        labels_pred = decisiontreezhoumath.predict_proba(decisiontreezhoumath.data, tree)
+        val_labels_pred = decisiontreezhoumath.predict_proba(self.val_data, tree)
         
         if decisiontreezhoumath.task == 'classification':
             train_metric = roc_auc_score(decisiontreezhoumath.labels, labels_pred)
@@ -197,17 +198,18 @@ class EarlyStopper:
             decisiontreezhoumath.best_tree = tree.copy()
             decisiontreezhoumath.feature_importances._renew_cache(decisiontreezhoumath.feature_importances_cache)
             self.feature_importances_cache = FeatureImportances(self.val_data.shape[1])
-            self.currert_early_stop_rounds = 0
+            self.current_early_stop_rounds = 0
         else:
-            self.currert_early_stop_rounds += 1
+            self.current_early_stop_rounds += 1
 
-        if self.currert_early_stop_rounds >= self.early_stop_rounds:
+        if self.current_early_stop_rounds >= self.early_stop_rounds:
             if self.verbose:
                 print(f'Early stop triggered at depth {self.current_max_depth - 1}')
             return True
 
         return False
 
+# ParentIndices Class
 class ParentIndices:
     def __init__(self, parent_sorted_indices = None, parent_null_indices = None):
         """
@@ -294,6 +296,7 @@ class ParentIndices:
 
         return filtered_indices
     
+# FeatureImportances Class
 class FeatureImportances:
     def __init__(self, num_features):
         """
@@ -336,6 +339,7 @@ class FeatureImportances:
             
         return feature_importances_df
 
+# CatgorialModule Class
 class CatgorialModule:
     def __init__(self, data):
         """
@@ -417,6 +421,7 @@ class CatgorialModule:
 
         return cat_features
 
+# Predictor Class
 class Predictor:
     def __init__(self, data, tree):
         """
@@ -437,21 +442,30 @@ class Predictor:
         """
         for i in range(len(self.tree)):
             node = self.tree[i]
+            self.current_node, self.probabilities = Predictor._traverse_nodes(self.data, self.indices, self.current_node,
+                                                                              self.probabilities, node.prob, node.feature,
+                                                                              node.null_direction,node.threshold, node.left,
+                                                                              node.right, i)
+        return self.probabilities
+            
+    @staticmethod
+    @njit
+    def _traverse_nodes(data, indices, current_node, probabilities, node_prob, node_feature,
+                        node_null_direction, node_threshold, node_left, node_right, i):
+        if node_prob is not None:
+            probabilities[indices[current_node == i]] = node_prob
 
-            if node.prob is not None:
-                self.probabilities[self.indices[self.current_node == i]] = node.prob[1]
+        if node_feature is not None:
+            index = indices[current_node == i]
+            feature_values = data[index, node_feature]
 
-            if node.feature is not None:
-                index = self.indices[self.current_node == i]
-                feature_values = self.data[index, node.feature]
+            if node_null_direction == 'left':
+                left_condition = (feature_values <= node_threshold) | np.isnan(feature_values)
+            else:
+                left_condition = (feature_values <= node_threshold)
 
-                if node.null_direction == 'left':
-                    left_condition = (feature_values <= node.threshold) | np.isnan(feature_values)
-                else:
-                    left_condition = (feature_values <= node.threshold)
-
-                if node.left is not None and node.right is not None:
-                    self.current_node[index[left_condition]] = node.left
-                    self.current_node[index[~left_condition]] = node.right
-
-        return np.vstack([1 - self.probabilities, self.probabilities]).T
+            if node_left is not None and node_right is not None:
+                current_node[index[left_condition]] = node_left
+                current_node[index[~left_condition]] = node_right
+        
+        return current_node, probabilities

@@ -21,14 +21,14 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # RandomForest class
 class RandomForestZhoumath(DecisionTreeZhoumath):
-    def __init__(self, num_base_trees, rf_column_rate, rf_sample_rate, task, split_criterion, search_method, max_depth=None,
+    def __init__(self, num_base_trees, ensemble_column_rate, ensemble_sample_rate, task, split_criterion, search_method, max_depth=None,
                  pos_weight=1, random_column_rate=1,min_split_sample_rate=0, min_leaf_sample_rate=0, verbose_for_tree=False,
-                 verbose_for_rf = False):
+                 verbose_for_ensemble = False):
         """
         Initialize the Random Forest model.
         :param num_base_trees: The number of base decision trees in the random forest.
-        :param rf_column_rate: The rate of features to randomly sample for each decision tree.
-        :param rf_sample_rate: The rate of samples to randomly sample for each decision tree.
+        :param ensemble_column_rate: The rate of features to randomly sample for each decision tree.
+        :param ensemble_sample_rate: The rate of samples to randomly sample for each decision tree.
         :param split_criterion: The criterion used for splitting nodes (e.g., "gini" or "entropy").
         :param search_method: The method for searching the best split ("dfs" or others).
         :param max_depth: The maximum depth of the decision trees (optional).
@@ -37,17 +37,17 @@ class RandomForestZhoumath(DecisionTreeZhoumath):
         :param min_split_sample_rate: The minimum sample rate for splitting a node.
         :param min_leaf_sample_rate: The minimum sample rate for a leaf node.
         :param verbose_for_tree: Boolean flag to enable verbose logging for individual trees.
-        :param verbose_for_rf: Boolean flag to enable verbose logging for the random forest.
+        :param verbose_for_ensemble: Boolean flag to enable verbose logging for the random forest.
         :return: None
         """
         super().__init__(task, split_criterion, search_method, max_depth, pos_weight,
                          random_column_rate, min_split_sample_rate, min_leaf_sample_rate)
         
         self.num_base_trees = num_base_trees
-        self.rf_column_rate = rf_column_rate
-        self.rf_sample_rate = rf_sample_rate
+        self.ensemble_column_rate = ensemble_column_rate
+        self.ensemble_sample_rate = ensemble_sample_rate
         self.verbose_for_tree = verbose_for_tree
-        self.verbose_for_rf = verbose_for_rf
+        self.verbose_for_ensemble = verbose_for_ensemble
         self.tree_models = []
         self.best_tree_models = []
      
@@ -66,8 +66,8 @@ class RandomForestZhoumath(DecisionTreeZhoumath):
         """
         self.data = np.ascontiguousarray(data)
         self.labels = np.ascontiguousarray(labels)
-        self.val_data = np.ascontiguousarray(val_data)
-        self.val_labels = np.ascontiguousarray(val_labels)
+        self.val_data = None
+        self.val_labels = None
         self.num_samples = data.shape[0]
         self.num_features = data.shape[1]
         self.random_state = random_state
@@ -75,16 +75,16 @@ class RandomForestZhoumath(DecisionTreeZhoumath):
         self.early_stop_rounds_for_tree = early_stop_rounds_for_tree
         self.early_stopper_rf = None
         
-        if (val_data is not None) and (val_labels is not None) and early_stop_rounds_for_forest is not None:
-            val_data = np.ascontiguousarray(val_data)
-            val_labels = np.ascontiguousarray(val_labels)
-            self.early_stopper_rf = EarlyStopperRF(val_data=val_data,
-                                                   val_labels=val_labels,
+        if (val_data is not None) and (val_labels is not None) and (early_stop_rounds_for_forest is not None):
+            self.val_data = np.ascontiguousarray(val_data)
+            self.val_labels = np.ascontiguousarray(val_labels)
+            self.early_stopper_rf = EarlyStopperRF(val_data=self.val_data,
+                                                   val_labels=self.val_labels,
                                                    early_stop_rounds=early_stop_rounds_for_forest,
-                                                   verbose=self.verbose_for_rf)
+                                                   verbose=self.verbose_for_ensemble)
         
         for i in range(self.num_base_trees):
-            early_stop_triggered = self._generdte_trees(i)
+            early_stop_triggered = self._generate_trees(i)
             if early_stop_triggered:
                 break
             
@@ -99,7 +99,7 @@ class RandomForestZhoumath(DecisionTreeZhoumath):
         
         return
     
-    def _generdte_trees(self, i):
+    def _generate_trees(self, i):
         """
         Generate a single decision tree for the random forest.
         :param i: The index of the current tree.
@@ -115,11 +115,10 @@ class RandomForestZhoumath(DecisionTreeZhoumath):
                                                      min_split_sample_rate=self.min_split_sample_rate,
                                                      min_leaf_sample_rate=self.min_leaf_sample_rate,
                                                      verbose=self.verbose_for_tree)
-        
-        valid_samples_num = max(np.ceil(self.num_samples * self.rf_column_rate), 2).astype(np.int32)
+        valid_samples_num = max(np.ceil(self.num_samples * self.ensemble_sample_rate), 2).astype(np.int32)
         valid_samples = np.sort(np.random.choice(np.arange(self.num_samples),
                                                  size=valid_samples_num, replace=False)).astype(np.int32)
-        muted_features_num = np.floor(self.num_features *(1 -  self.rf_column_rate)).astype(np.int32)
+        muted_features_num = np.floor(self.num_features *(1 -  self.ensemble_column_rate)).astype(np.int32)
         muted_features = np.sort(np.random.choice(np.arange(self.num_features),
                                                   size=muted_features_num, replace=False)).astype(np.int32)
         train_data = self.data[valid_samples, :].copy()
@@ -130,7 +129,6 @@ class RandomForestZhoumath(DecisionTreeZhoumath):
                                   val_data=self.val_data,
                                   val_labels=self.val_labels,
                                   early_stop_rounds=self.early_stop_rounds_for_tree)
-        
         self.tree_models.append(current_decision_tree)
         
         if self.early_stopper_rf is not None:
@@ -149,10 +147,10 @@ class RandomForestZhoumath(DecisionTreeZhoumath):
         :param data: The input data for prediction.
         :return: A 2D numpy array of predicted probabilities.
         """
-        tree_predictions = np.zeros((data.shape[0], self.num_base_trees))
+        tree_predictions = np.zeros((data.shape[0], len(self.tree_models)))
         
         for i in range(len(self.tree_models)):
-            tree_predictions[:, i] = self.tree_models[i].predict_proba(data)[:,1]
+            tree_predictions[:, i] = self.tree_models[i].predict_proba(data)
             
         tree_prediction = tree_predictions.mean(axis = 1)
-        return np.vstack([1 - tree_prediction, tree_prediction]).T
+        return tree_prediction

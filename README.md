@@ -1,4 +1,4 @@
-# Decision Tree Zhoumath Implementation - Zhoushus (v0.2.1)
+# Gradient Boosting Zhoumath Implementation - Zhoushus (v0.3.0)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -93,6 +93,12 @@ This project provides a basic implementation of a decision tree and tree-based e
 	- Early Stopping with MSE: Introduced early stopping functionality for regression tasks based on MSE, preventing overfitting and improving model performance during training.   
 	- Optimization of Training Process: Optimized the decision tree fitting process, improving efficiency and scalability for large datasets, especially in regression tasks.
 
+  - **New in v0.3.0**:  
+	- Bug Fixes: Resolved issues with sample sampling in Random Forest, ensuring proper sampling behavior during tree generation.  
+	- Prediction Accuracy Fix: Corrected errors in the Random Forest prediction logic to ensure more accurate output.  
+	- Gradient Boosting Class: Introduced `GradientBoostZhoumath`, an implementation of gradient boosting using decision trees with support for early stopping and customizable hyperparameters.  
+	- Loss Function Restriction: Gradient Boosting is now restricted to using MSE (Mean Squared Error) as the loss function for both regression and classification tasks.  
+	- Early Stopping: Added early stopping functionality for both individual trees and entire ensemble training, preventing overfitting during model training.
 
 ## Installation
 ### Prerequisites
@@ -134,12 +140,17 @@ or download the compressed document on GitHub.
 │   └── random_forest_zhoumath
 │       ├── random_forest_zhoumath.py
 │       └── random_forest_helper_zhoumath.py
+│   └── random_forest_zhoumath
+│       ├── gradient_boost_zhoumath.py
+│       └── gradient_boost_helper_zhoumath.py
 └── examples
     ├── cal_ranking_by_freq.py
     ├── decision_tree_zhoumath_examples
 	│    	└── decision_tree_zhoumath_example_script.py
 	├── random_forest_zhoumath_examples
-	└── random_forest_zhoumath_example_script.py
+	│    	└── random_forest_zhoumath_example_script.py
+	└── gradient_boost_zhoumath_examples
+	    	└── gradient_boost_zhoumath_example_script.py
 ```
 
 ### Key Files
@@ -147,8 +158,10 @@ or download the compressed document on GitHub.
 - **`decision_tree_with_null_zhoumath.py`**: Implements the `DecisionTreeWithNullZhoumath` class, extending `DecisionTreeZhoumath` to handle datasets with missing values (`NaN`).
 - **`decision_tree_helper_zhoumath.py`**: Contains utility functions and helper methods for building and training decision trees, including feature selection and splitting logic.
 
-- **`random_forest_zhoumath.py`**: Implements the `RandomForestZhoumath` class, which builds an ensemble of decision trees for improved classification tasks.
+- **`random_forest_zhoumath.py`**: Implements the `RandomForestZhoumath` class, which builds an ensemble of bagging decision trees for improved classification and regressing tasks.
 - **`random_forest_helper_zhoumath.py`**: Contains utility functions and helper methods specific to random forest, such as bootstrap sampling, model training, and feature importance calculation.
+
+- **`gradient_boost_zhoumath.py`**: Implements the `GradientBoostZhoumath` class, which builds an ensemble of boosting decision trees for improved classification tasks.
 
 - **`examples/`**: Example scripts demonstrating usage of the decision tree and random forest models.
   - **`cal_ranking_by_freq.py`**: An example script for calculating model score ranking using frequency-based bins. Useful for understanding prediction distribution and model calibration.
@@ -156,6 +169,8 @@ or download the compressed document on GitHub.
     - **`decision_tree_zhoumath_example_script.py`**: A script demonstrating how to train and evaluate a decision tree using a dataset (e.g., Breast Cancer dataset).
   - **`random_forest_zhoumath_examples/`**: Contains examples for using `RandomForestZhoumath`, including a script for training and evaluating a random forest model.
     - **`random_forest_zhoumath_example_script.py`**: A script demonstrating how to train and evaluate a random forest using a dataset.
+  - **`gradient_boost_zhoumath_examples/`**: Contains examples for using `GradientBoostZhoumath`, including a script for training and evaluating a gradient boost model.
+    - **`gradient_boost_zhoumath_example_script.py`**: A script demonstrating how to train and evaluate a gradient boost using a dataset.
 
 
 
@@ -186,7 +201,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.2.1**
+Current version: **0.3.0**
 
 ## Author
 - **Zhoushus**

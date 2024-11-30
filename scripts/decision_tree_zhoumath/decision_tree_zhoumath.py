@@ -77,9 +77,9 @@ class DecisionTreeZhoumath:
             self.feature_importances = tree_with_null.feature_importances
         
         else:
-            self._fitting(data, labels, weight, val_data, val_labels, early_stop_rounds, random_state)
+            self._fitting(data, labels, val_data, val_labels, early_stop_rounds, random_state)
         
-    def _fitting(self, data, labels, val_data, weight, val_labels, early_stop_rounds, random_state):
+    def _fitting(self, data, labels, val_data, val_labels, early_stop_rounds, random_state):
         """
         Fit the decision tree by processing categorical features and optionally enabling 
         early stopping. The tree is built based on the training data and labels.
@@ -94,7 +94,6 @@ class DecisionTreeZhoumath:
         
         data = np.ascontiguousarray(data)
         labels = np.ascontiguousarray(labels)
-        
         self.categorial_module = CatgorialModule(data)
         
         if np.any(self.categorial_module.is_cat_feature):
@@ -107,8 +106,8 @@ class DecisionTreeZhoumath:
         
         if early_stop_rounds and self.search_method != 'bfs':
             raise ValueError("Early Stopping requires 'bfs' as the search method.")
-
-        if (val_data is not None) and (val_labels is not None) and early_stop_rounds is not None:
+        
+        if (val_data is not None) and (val_labels is not None) and (early_stop_rounds is not None):
             if self.verbose:
                 print("Early stop mode is opened. Search method can only be BFS.")
                 
@@ -123,7 +122,7 @@ class DecisionTreeZhoumath:
         else:
             early_stopper = None
 
-        labels = np.ascontiguousarray(labels.astype(np.int32))
+        labels = np.ascontiguousarray(labels)
         self.data = data
         self.labels = labels
         self.feature_importances = FeatureImportances(data.shape[1])
@@ -186,7 +185,6 @@ class DecisionTreeZhoumath:
                 continue
 
             current_best_status, filtered_indices = self._choose_best_split(current_node)
-            
             min_right_leaf_sample_rate_condition = (current_best_status.right_indices.shape[0]) < (self.labels.shape[0] * self.min_leaf_sample_rate)
             min_left_leaf_sample_rate_condition = (current_best_status.left_indices.shape[0]) < (self.labels.shape[0] * self.min_leaf_sample_rate)
             min_leaf_sample_rate_condition = min_right_leaf_sample_rate_condition or min_left_leaf_sample_rate_condition
@@ -200,8 +198,7 @@ class DecisionTreeZhoumath:
                                          null_direction=current_best_status.best_null_direction)
 
             if early_stopper is not None:
-                probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
-                current_tree_node.prob = probabilities
+                current_tree_node.prob = np.mean(labels)
 
             DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
             right_node = CollectionNode(row_indices=current_best_status.right_indices,
@@ -239,7 +236,7 @@ class DecisionTreeZhoumath:
         return root_collection_node
     
     @staticmethod
-    def _finallize_node(labels,tree, current_node):
+    def _finallize_node(labels, tree, current_node):
         """
         Finalize a node by calculating its probabilities and adding it to the tree.
         :param labels: Labels for the current node.
@@ -248,22 +245,8 @@ class DecisionTreeZhoumath:
         """
         from decision_tree_helper_zhoumath import TreeNode
         
-        probabilities = DecisionTreeZhoumath._calculate_probabilities(labels)
-        current_tree_node = TreeNode(prob=probabilities)
+        current_tree_node = TreeNode(prob=np.mean(labels))
         DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
-
-    @staticmethod
-    @njit
-    def _calculate_probabilities(labels):
-        """
-        Calculate class probabilities for a binary classification based on the given labels.
-        The probability of the positive class is simply the mean of the labels (i.e., the 
-        proportion of positive labels).
-        :param labels: Labels for the current node, used to calculate the probabilities.
-        :return: A probability distribution as a NumPy array [probability_of_class_0, probability_of_class_1].
-        """
-        mean = np.mean(labels)
-        return np.array([1 - mean, mean])
 
     @staticmethod
     def _add_node_to_tree(tree, current_node, current_tree_node):
@@ -304,7 +287,7 @@ class DecisionTreeZhoumath:
             metrics = DecisionTreeZhoumath._calculate_metrics_mse(filtered_sorted_labels, base_metric, self.pos_weight)
         else:
             metrics = DecisionTreeZhoumath._calculate_metrics(filtered_sorted_labels, base_metric, self.pos_weight, self.split_criterion)
-
+            
         if self.split_criterion == 'entropy_gain_ratio':
             intrinsic_value = DecisionTreeZhoumath._calculate_intrinsic_value(filtered_sorted_labels[:, 0])
             metrics = metrics / intrinsic_value
@@ -358,19 +341,17 @@ class DecisionTreeZhoumath:
         zero_rate = zero_rate / (zero_rate + pos_weight * one_rate)
         one_rate = 1 - zero_rate
         
-        if split_criterion == 'entropy' or split_criterion == 'entropy_gain':
+        if split_criterion == 'entropy_gain' or split_criterion == 'entropy_gain_ratio':
             loss = -np.log2(1 - np.abs(diff) + 1e-9)
             weighted_loss = pos_weight * loss
             mean_weighted_loss = np.mean(weighted_loss)
             return mean_weighted_loss
-        
         elif split_criterion == 'gini':
             loss = np.abs(diff)
             weighted_loss = pos_weight * loss
             mean_weighted_loss = np.mean(weighted_loss)
             return mean_weighted_loss
-        
-        elif split_criterion == 'mse':
+        else:
             loss = np.square(diff)
             weighted_loss = pos_weight * loss
             mean_weighted_loss = np.mean(weighted_loss)
@@ -410,7 +391,7 @@ class DecisionTreeZhoumath:
         left_probs = (np.arange(1, num_rows) / num_rows).reshape(-1, 1)
         right_probs = (np.arange(num_rows - 1, 0, -1) / num_rows).reshape(-1, 1)
 
-        if split_criterion == 'entropy' or split_criterion == 'entropy_gain':
+        if split_criterion == 'entropy_gain' or split_criterion == 'entropy_gain_ratio':
             left_entropy = -left_zero_rate * np.log2(left_zero_rate + 1e-9) - pos_weight * left_one_rate * np.log2(left_one_rate + 1e-9)
             right_entropy = -right_zero_rate * np.log2(right_zero_rate + 1e-9) - pos_weight * right_one_rate * np.log2(right_one_rate + 1e-9)
             weighted_entropy = left_probs * left_entropy + right_probs * right_entropy

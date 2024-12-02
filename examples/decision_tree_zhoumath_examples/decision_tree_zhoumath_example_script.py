@@ -62,7 +62,7 @@ X_train[mask] = np.nan
 max_depth = 20
 split_criterion = 'mse'
 search_method = 'bfs'
-task = 'classification'
+task = 'regression'
 tree_model = DecisionTreeZhoumath(task=task,
                                   max_depth=max_depth,
                                   split_criterion=split_criterion,

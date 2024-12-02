@@ -27,7 +27,6 @@ from cal_ranking_by_freq import calRankingByFreq2
 from random_forest_zhoumath import RandomForestZhoumath
 np.random.seed(42)
 
-
 #Warmup njit
 warmup_data = np.array([0,1])
 @njit
@@ -59,12 +58,12 @@ X_train = np.array(X_train)
 mask = np.random.uniform(size = X_train.shape) > 1
 X_train[mask] = np.nan
 num_base_trees = 1000
-ensemble_column_rate = 0.5
-ensemble_sample_rate = 0.5
+ensemble_column_rate = 0.8
+ensemble_sample_rate = 0.8
 max_depth = 10
 split_criterion = 'mse'
 search_method = 'bfs'
-task = 'classification'
+task = 'regression'
 random_forest_model = RandomForestZhoumath(num_base_trees=num_base_trees,
                                            ensemble_column_rate=ensemble_column_rate,
                                            ensemble_sample_rate=ensemble_sample_rate,
@@ -80,7 +79,7 @@ random_forest_model.fit(data=X_train,
                         val_data=X_val,
                         val_labels=y_val,
                         early_stop_rounds_for_tree=1,
-                        early_stop_rounds_for_forest=10)
+                        early_stop_rounds_for_forest=20)
 toc = time.time()
 gap = toc-tic
 print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f} seconds.')
@@ -115,7 +114,7 @@ plt.show()
 feature_importances_df = random_forest_model.feature_importances.get_feature_importances_df(data.data.columns)
 
 # Replace feature indices with column names
-df = pd.DataFrame(X_test)
+df = pd.DataFrame()
 df["y"] = y_test
 df["y_pred"] = y_test_pred
 tmp = calRankingByFreq2(df, label="y", score="y_pred", bins=10)

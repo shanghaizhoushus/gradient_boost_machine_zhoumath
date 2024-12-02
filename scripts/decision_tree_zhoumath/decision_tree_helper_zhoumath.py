@@ -180,18 +180,19 @@ class EarlyStopper:
         self.current_max_depth = current_node.depth
         labels_pred = decisiontreezhoumath.predict_proba(decisiontreezhoumath.data, tree)
         val_labels_pred = decisiontreezhoumath.predict_proba(self.val_data, tree)
+        train_labels = decisiontreezhoumath.labels
         
         if decisiontreezhoumath.task == 'classification':
-            train_metric = roc_auc_score(decisiontreezhoumath.labels, labels_pred)
+            train_metric = roc_auc_score(train_labels, labels_pred)
             val_metric = roc_auc_score(self.val_labels, val_labels_pred)
             if self.verbose:
                 print(f'Current depth: {self.current_max_depth - 1}, current train AUC: {train_metric:.3f}, current val AUC: {val_metric:.3f}')
         
         if decisiontreezhoumath.task == 'regression':
-            train_metric = -np.mean((decisiontreezhoumath.labels - labels_pred) ** 2)
-            val_metric = -np.mean((self.val_labels - val_labels_pred) ** 2)
+            train_metric = 1 - np.mean((train_labels - labels_pred) ** 2) / np.mean((train_labels - train_labels.mean()) ** 2)
+            val_metric = 1 - np.mean((self.val_labels - val_labels_pred) ** 2) / np.mean((self.val_labels - self.val_labels.mean()) ** 2)
             if self.verbose:
-                print(f'Current depth: {self.current_max_depth - 1}, current train MSE: {-train_metric:.3f}, current val MSE: {-val_metric:.3f}')
+                print(f'Current depth: {self.current_max_depth - 1}, current train R2: {train_metric:.3f}, current val R2: {val_metric:.3f}')
 
         if val_metric > self.best_metric:
             self.best_metric = val_metric

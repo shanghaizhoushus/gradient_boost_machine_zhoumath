@@ -1,4 +1,4 @@
-# Gradient Boosting Zhoumath Implementation - Zhoushus (v0.3.0)
+# Gradient Boosting Zhoumath Implementation - Zhoushus (v0.3.1)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -99,6 +99,12 @@ This project provides a basic implementation of a decision tree and tree-based e
 	- Gradient Boosting Class: Introduced `GradientBoostZhoumath`, an implementation of gradient boosting using decision trees with support for early stopping and customizable hyperparameters.  
 	- Loss Function Restriction: Gradient Boosting is now restricted to using MSE (Mean Squared Error) as the loss function for both regression and classification tasks.  
 	- Early Stopping: Added early stopping functionality for both individual trees and entire ensemble training, preventing overfitting during model training.
+
+  - **New in 0.3.1:**
+	- R² Evaluation for Regression Tasks: The model now supports R² (Coefficient of Determination) as a performance metric for regression tasks, providing a better measure of model accuracy for continuous output.
+	- Logloss for GBDT Binary Classification: Introduced support for GBDT with Logloss as the loss function for binary classification tasks. This allows for improved handling of classification problems, though the `DecisionTreeZhoumathLosloss` class is still under development.
+
+
 
 ## Installation
 ### Prerequisites
@@ -201,7 +207,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.3.0**
+Current version: **0.3.1**
 
 ## Author
 - **Zhoushus**

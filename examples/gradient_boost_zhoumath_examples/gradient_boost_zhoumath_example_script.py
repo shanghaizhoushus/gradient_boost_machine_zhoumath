@@ -29,7 +29,6 @@ from cal_ranking_by_freq import calRankingByFreq2
 from gradient_boost_zhoumath import GradientBoostZhoumath
 np.random.seed(42)
 
-
 #Warmup njit
 warmup_data = np.array([0,1])
 @njit
@@ -47,7 +46,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 data = load_breast_cancer(as_frame=True)
 X, y = data.data, data.target
 '''
-data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 110000)
+data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 11000)
 X = data.iloc[:, 1:]
 y = data.iloc[:, 0]
 '''
@@ -62,12 +61,12 @@ mask = np.random.uniform(size = X_train.shape) > 1
 X_train[mask] = np.nan
 learning_rate = 0.2
 num_base_trees = 1000
-ensemble_column_rate = 0.5
-ensemble_sample_rate = 0.5
-max_depth = 3
+ensemble_column_rate = 0.8
+ensemble_sample_rate = 0.8
+max_depth = 10
 split_criterion = 'mse'
 search_method = 'bfs'
-task = 'classification'
+task = 'regression'
 gradient_boost_model = GradientBoostZhoumath(learning_rate = learning_rate,
                                              num_base_trees=num_base_trees,
                                              ensemble_column_rate=ensemble_column_rate,
@@ -119,7 +118,7 @@ plt.show()
 feature_importances_df = gradient_boost_model.feature_importances.get_feature_importances_df(data.data.columns)
 
 # Replace feature indices with column names
-df = pd.DataFrame(X_test)
+df = pd.DataFrame()
 df["y"] = y_test
 df["y_pred"] = y_test_pred
 tmp = calRankingByFreq2(df, label="y", score="y_pred", bins=10)

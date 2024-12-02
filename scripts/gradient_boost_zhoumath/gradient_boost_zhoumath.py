@@ -15,7 +15,7 @@ from sklearn.metrics import roc_auc_score
 script_dir = os.path.abspath(os.path.join(os.getcwd(), '../../scripts/decision_tree_zhoumath'))
 sys.path.insert(0, script_dir)
 from random_forest_zhoumath import RandomForestZhoumath
-from decision_tree_zhoumath import DecisionTreeZhoumath
+from decision_tree_zhoumath import DecisionTreeZhoumath, DecisionTreeZhoumathLosloss
 from random_forest_helper_zhoumath import EarlyStopperRF, FeatureImportancesRF
 
 # Settings
@@ -72,45 +72,16 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         self.early_stop_rounds_for_tree = early_stop_rounds_for_tree
         self.early_stopper_gb = None
         self.labels_mean = np.mean(self.labels)
-        self.mse_condition = self.task == 'regression' or (self.task == 'classification' and self.split_criterion == 'mse')
+        gbdt_mse_condition = self.task == 'regression' or (self.task == 'classification' and self.split_criterion == 'mse')
+        gbdt_logloss_condition = self.task == 'classification' and self.split_criterion == 'logloss'
         
-        if self.mse_condition:
-            self.tree_models_predictions = self.labels_mean * np.ones(self.labels.shape)
-            '''
+        if gbdt_mse_condition:
+            self.fit_mse(val_data, val_labels, early_stop_rounds_for_forest)
+        elif gbdt_logloss_condition:
+            self.fit_logloss(val_data, val_labels, early_stop_rounds_for_forest)
         else:
-            self.tree_models_predictions = np.log(self.labels_mean / (1 - self.labels_mean)) * np.ones(self.labels.shape)
-            '''
-        
-        if (val_data is not None) and (val_labels is not None) and early_stop_rounds_for_forest is not None:
-            self.val_data = np.ascontiguousarray(val_data)
-            self.val_labels = np.ascontiguousarray(val_labels)
-            self.tree_models_predictions_val = self.labels_mean * np.ones(self.val_labels.shape)
-            self.early_stopper_gb = EarlyStopperGB(val_data=val_data,
-                                                   val_labels=val_labels,
-                                                   early_stop_rounds=early_stop_rounds_for_forest,
-                                                   verbose=self.verbose_for_ensemble)
-        
-        for i in range(self.num_base_trees):
-            if self.mse_condition:
-                labels_residual = self.labels - self.tree_models_predictions
-                '''
-            else:
-                labels_residual_val = self.labels - np.exp(self.tree_models_predictions) / (1 + np.exp(self.tree_models_predictions))
-                '''
-            labels_residual_val = None
-            
-            if self.early_stopper_gb is not None:
-                if self.mse_condition:
-                    labels_residual_val = self.val_labels - self.tree_models_predictions_val
-                    '''
-                else:
-                    labels_residual_val = self.val_labels - self.tree_models_predictions_val
-                    '''
-                
-            early_stop_triggered = self._generate_trees(i, labels_residual, labels_residual_val)
-            
-            if early_stop_triggered:
-                break
+            raise ValueError("MSE is the only supported loss function for regression,"
+                             "and MSE and Entropy(logloss) are supported for classification.")
             
         self.data = None
         self.labels = None
@@ -118,14 +89,72 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         self.val_labels = None
         self.tree_models_predictions = None
         self.tree_models_predictions_val = None
-
+        
+    def fit_mse(self, val_data, val_labels, early_stop_rounds_for_forest):    
+        self.tree_models_predictions = self.labels_mean * np.ones(self.labels.shape)
+        
+        if (val_data is not None) and (val_labels is not None) and early_stop_rounds_for_forest is not None:
+            self.val_data = np.ascontiguousarray(val_data)
+            self.val_labels = np.ascontiguousarray(val_labels)
+            self.labels_mean_val = np.mean(self.labels)
+            self.tree_models_predictions_val = self.labels_mean_val * np.ones(self.val_labels.shape)
+            self.early_stopper_gb = EarlyStopperGB(val_data=val_data,
+                                                   val_labels=val_labels,
+                                                   early_stop_rounds=early_stop_rounds_for_forest,
+                                                   verbose=self.verbose_for_ensemble)
+            
+        for i in range(self.num_base_trees):
+            labels_residual = self.labels - self.tree_models_predictions
+            
+            if self.early_stopper_gb is not None:
+                labels_residual_val = self.val_labels - self.tree_models_predictions_val
+            
+            early_stop_triggered = self._generate_trees_mse(i, labels_residual, labels_residual_val)
+            
+            if early_stop_triggered:
+                break
+        
         if self.early_stopper_gb is not None:
             self.tree_models = copy.deepcopy(self.best_tree_models)
             return
     
         return
     
-    def _generate_trees(self, i, labels_residual, labels_residual_val):
+    def fit_logloss(self, val_data, val_labels, early_stop_rounds_for_forest):    
+        self.tree_models_predictions = self.labels_mean * np.ones(self.labels.shape)
+        self.tree_models_logodds = np.log(self.labels_mean / (1 - self.labels_mean)) * np.ones(self.labels.shape)
+        
+        if (val_data is not None) and (val_labels is not None) and early_stop_rounds_for_forest is not None:
+            self.val_data = np.ascontiguousarray(val_data)
+            self.val_labels = np.ascontiguousarray(val_labels)
+            self.tree_models_predictions_val = self.labels_mean_val * np.ones(self.val_labels.shape)
+            self.tree_models_logodds_val = np.log(self.labels_mean_val / (1 - self.labels_mean_val)) * np.ones(self.val_labels.shape)
+            self.early_stopper_gb = EarlyStopperGB(val_data=val_data,
+                                                   val_labels=val_labels,
+                                                   early_stop_rounds=early_stop_rounds_for_forest,
+                                                   verbose=self.verbose_for_ensemble)
+            
+        for i in range(self.num_base_trees):
+            labels_residual = self.labels - self.tree_models_predictions
+            labels_hessian = self.tree_models_predictions * (1 - self.tree_models_predictions)
+            
+            if self.early_stopper_gb is not None:
+                labels_residual_val = self.val_labels - self.tree_models_predictions_val
+                labels_hessian_val = self.tree_models_predictions_val * (1 - self.tree_models_predictions_val)
+            
+            early_stop_triggered = self._generate_trees_logloss(i, labels_residual, labels_residual_val,
+                                                                labels_hessian, labels_hessian_val)
+            
+            if early_stop_triggered:
+                break
+        
+        if self.early_stopper_gb is not None:
+            self.tree_models = copy.deepcopy(self.best_tree_models)
+            return
+            
+        return
+   
+    def _generate_trees_mse(self, i, train_residual, val_residual):
         """
         Generate a single decision tree to be added to the gradient boosting ensemble.
         :param i: The index of the current tree being trained.
@@ -143,7 +172,6 @@ class GradientBoostZhoumath(RandomForestZhoumath):
                                                      min_split_sample_rate=self.min_split_sample_rate,
                                                      min_leaf_sample_rate=self.min_leaf_sample_rate,
                                                      verbose=self.verbose_for_tree)
-        
         valid_samples_num = max(np.ceil(self.num_samples * self.ensemble_sample_rate), 2).astype(np.int32)
         valid_samples = np.sort(np.random.choice(np.arange(self.num_samples),
                                                  size=valid_samples_num, replace=False)).astype(np.int32)
@@ -152,26 +180,71 @@ class GradientBoostZhoumath(RandomForestZhoumath):
                                                   size=muted_features_num, replace=False)).astype(np.int32)
         train_data = self.data[valid_samples, :].copy()
         train_data[:, muted_features] = -np.inf
-        train_labels_residual = labels_residual[valid_samples].copy()
+        train_residual = train_residual[valid_samples].copy()
         current_decision_tree.fit(data=train_data,
-                                  labels=train_labels_residual,
+                                  labels=train_residual,
                                   val_data=self.val_data,
-                                  val_labels=labels_residual_val,
+                                  val_labels=train_residual,
                                   early_stop_rounds=self.early_stop_rounds_for_tree)
         self.tree_models.append(current_decision_tree)
-        
-        if self.mse_condition:
-            data_prediciton = current_decision_tree.predict_proba(self.data)
-            self.tree_models_predictions += self.learning_rate * data_prediciton
-            '''
-        else:
-            data_prediciton = current_decision_tree.predict_proba(self.data)
-            self.tree_models_predictions += self.learning_rate * data_prediciton
-            '''
+        data_prediciton = current_decision_tree.predict_proba(self.data)
+        self.tree_models_predictions += self.learning_rate * data_prediciton
         
         if self.early_stopper_gb is not None:
             val_data_prediciton = current_decision_tree.predict_proba(self.val_data)
             self.tree_models_predictions_val += self.learning_rate * val_data_prediciton
+            early_stop_triggered = self.early_stopper_gb._evaluate_early_stop(current_decision_tree, self)
+            
+            if early_stop_triggered:
+                self.tree_models = copy.deepcopy(self.best_tree_models)
+                return True
+        else:
+            self.feature_importances._renew_feature_importances(current_decision_tree)
+            
+        return False
+    
+    def _generate_trees_logloss(self, i, train_residual, val_residual, train_hessians, val_hessians):
+        """
+        Generate a single decision tree to be added to the gradient boosting ensemble.
+        :param i: The index of the current tree being trained.
+        :param labels_residual: The residuals for the training data (difference between actual and predicted values).
+        :param labels_residual_val: The residuals for the validation data (optional).
+        :return: Boolean indicating whether early stopping was triggered (True/False).
+        """
+        np.random.seed(self.random_state + i)
+        current_decision_tree = DecisionTreeZhoumathLosloss(search_method=self.search_method,
+                                                            max_depth=self.max_depth,
+                                                            pos_weight=self.pos_weight,
+                                                            random_column_rate=self.random_column_rate,
+                                                            min_split_sample_rate=self.min_split_sample_rate,
+                                                            min_leaf_sample_rate=self.min_leaf_sample_rate,
+                                                            verbose=self.verbose_for_tree)
+        valid_samples_num = max(np.ceil(self.num_samples * self.ensemble_sample_rate), 2).astype(np.int32)
+        valid_samples = np.sort(np.random.choice(np.arange(self.num_samples),
+                                                 size=valid_samples_num, replace=False)).astype(np.int32)
+        muted_features_num = np.floor(self.num_features *(1 -  self.ensemble_column_rate)).astype(np.int32)
+        muted_features = np.sort(np.random.choice(np.arange(self.num_features),
+                                                  size=muted_features_num, replace=False)).astype(np.int32)
+        train_data = self.data[valid_samples, :].copy()
+        train_data[:, muted_features] = -np.inf
+        train_residual = train_residual[valid_samples].copy()
+        train_hessians = train_hessians[valid_samples]
+        current_decision_tree.fit(data=train_data,
+                                  labels=train_residual,
+                                  hessians = train_hessians,
+                                  val_data=self.val_data,
+                                  val_labels=val_residual,
+                                  val_hessians=val_hessians,
+                                  early_stop_rounds=self.early_stop_rounds_for_tree)
+        self.tree_models.append(current_decision_tree)
+        data_logodds = current_decision_tree.predict_proba(self.data)
+        self.tree_models_logodds += self.learning_rate * data_logodds
+        self.tree_models_predictions = 1 / (1 + np.exp(-self.tree_models_logodds))
+        
+        if self.early_stopper_gb is not None:
+            val_data_logodds = current_decision_tree.predict_proba(self.val_data)
+            self.tree_models_logodds_val += self.learning_rate * val_data_logodds
+            self.tree_models_predictions_val = 1 / (1 + np.exp(-self.tree_models_logodds_val))
             early_stop_triggered = self.early_stopper_gb._evaluate_early_stop(current_decision_tree, self)
             
             if early_stop_triggered:
@@ -189,7 +262,6 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         :return: A 2D numpy array of predicted probabilities.
         """
         tree_predictions = np.zeros((data.shape[0], len(self.tree_models) + 1))
-        
         tree_predictions[:,0] = self.labels_mean * np.ones(data.shape[0])
         
         for i in range(len(self.tree_models)):
@@ -220,20 +292,21 @@ class EarlyStopperGB(EarlyStopperRF):
         """
         self.current_trees += 1
         self.feature_importances_cache._renew_feature_importances(current_decision_tree)
+        train_labels = gradientboostzhoumath.labels
         labels_preds = gradientboostzhoumath.tree_models_predictions
         val_labels_preds = gradientboostzhoumath.tree_models_predictions_val
         
         if gradientboostzhoumath.task == 'classification':
-            train_metric = roc_auc_score(gradientboostzhoumath.labels, labels_preds)
+            train_metric = roc_auc_score(train_labels, labels_preds)
             val_metric = roc_auc_score(self.val_labels, val_labels_preds)
             if self.verbose:
                 print(f'Current trees: {self.current_trees}, current train AUC: {train_metric:.3f}, current val AUC: {val_metric:.3f}')
         
         if gradientboostzhoumath.task == 'regression':
-            train_metric = -np.mean((gradientboostzhoumath.labels - labels_preds) ** 2)
-            val_metric = -np.mean((self.val_labels - val_labels_preds) ** 2)
+            train_metric = 1 - np.mean((train_labels - labels_preds) ** 2) / np.mean((train_labels - train_labels.mean()) ** 2)
+            val_metric = 1 - np.mean((self.val_labels - val_labels_preds) ** 2) / np.mean((self.val_labels - self.val_labels.mean()) ** 2)
             if self.verbose:
-                print(f'Current trees : {self.current_trees}, current train MSE: {-train_metric:.3f}, current val MSE: {-val_metric:.3f}')
+                print(f'Current trees : {self.current_trees}, current train R2: {train_metric:.3f}, current val R2: {val_metric:.3f}')
         
         if val_metric > self.best_metric:
             self.best_metric = val_metric
@@ -248,9 +321,9 @@ class EarlyStopperGB(EarlyStopperRF):
             if self.verbose:
                 print(f'Early stop triggered at num trees {self.current_trees}')
             return True
-
+        
         return False
-            
+
 # FeatureImportancesGB Class
 class FeatureImportancesGB(FeatureImportancesRF):
     def __init__(self, num_features):

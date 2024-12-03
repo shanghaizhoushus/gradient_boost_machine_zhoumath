@@ -53,7 +53,7 @@ class DecisionTreeZhoumath:
         self.tree = None
         self.verbose = verbose
 
-    def fit(self, data, labels, weight = None, val_data=None, val_labels=None, early_stop_rounds=1, random_state=42):
+    def fit(self, data, labels, val_data=None, val_labels=None, early_stop_rounds=1, random_state=42):
         """
         Train the decision tree.
         :param data: Feature data.
@@ -72,7 +72,7 @@ class DecisionTreeZhoumath:
                 search_method=self.search_method,
                 max_depth=self.max_depth
             )
-            tree_with_null.fitting(data, labels, weight, val_data, val_labels, early_stop_rounds, random_state)
+            tree_with_null.fitting(data, labels, val_data, val_labels, early_stop_rounds, random_state)
             self.tree = tree_with_null.tree
             self.feature_importances = tree_with_null.feature_importances
         
@@ -90,17 +90,17 @@ class DecisionTreeZhoumath:
         :param early_stop_rounds: Number of rounds without improvement before early stopping.
         :param random_state: Random seed for reproducibility.
         """
-        from decision_tree_helper_zhoumath import EarlyStopper, FeatureImportances, CatgorialModule
+        from decision_tree_helper_zhoumath import EarlyStopper, FeatureImportances, CategorialModule
         
         data = np.ascontiguousarray(data)
         labels = np.ascontiguousarray(labels)
-        self.categorial_module = CatgorialModule(data)
+        self.categorial_module = CategorialModule(data)
         
         if np.any(self.categorial_module.is_cat_feature):
-            data = self.categorial_module._prepossess_catgorial(data, labels, random_state)
+            data = self.categorial_module._prepossess_categorial(data, labels, random_state)
             
             if early_stop_rounds:
-                val_data = self.categorial_module._prepossess_catgorial_val(val_data)
+                val_data = self.categorial_module._prepossess_categorial_val(val_data)
         else:
             data = DecisionTreeZhoumath._add_perturbation(data, random_state)
         
@@ -228,7 +228,6 @@ class DecisionTreeZhoumath:
         :return: Initialized root collection node with depth 0 and root indices.
         """
         from decision_tree_helper_zhoumath import CollectionNode, ParentIndices
-        
         root_indices = ParentIndices(parent_sorted_indices=np.ascontiguousarray(np.argsort(self.data, axis=0)))
         root_collection_node = CollectionNode(depth=0,
                                               row_indices=np.arange(self.labels.shape[0]),
@@ -467,7 +466,7 @@ class DecisionTreeZhoumath:
             data = np.ascontiguousarray(data)
             
             if np.any(self.categorial_module.is_cat_feature):
-                data = self.categorial_module._prepossess_catgorial_val(data)
+                data = self.categorial_module._prepossess_categorial_val(data)
                     
         data = np.ascontiguousarray(data)
         predictor = Predictor(data, tree)

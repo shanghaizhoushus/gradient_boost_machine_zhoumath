@@ -1,4 +1,4 @@
-# Gradient Boosting Zhoumath Implementation - Zhoushus (v0.3.1)
+# Gradient Boosting Zhoumath Implementation - Zhoushus (v0.3.2)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -104,7 +104,10 @@ This project provides a basic implementation of a decision tree and tree-based e
 	- R² Evaluation for Regression Tasks: The model now supports R² (Coefficient of Determination) as a performance metric for regression tasks, providing a better measure of model accuracy for continuous output.
 	- Logloss for GBDT Binary Classification: Introduced support for GBDT with Logloss as the loss function for binary classification tasks. This allows for improved handling of classification problems, though the `DecisionTreeZhoumathLosloss` class is still under development.
 
-
+  - **New in 0.3.2:**
+	- Logloss Decision Tree for GBDT Binary Classification: Introduced `DecisionTreeLoglossZhoumath` which supports GBDT binary classification using Logloss as the loss function, enabling more effective handling of binary classification tasks. 
+	- Expanded Gradient Boosting Support: The Gradient Boosting implementation now supports a Logloss version for binary classification, extending its utility for diverse machine learning tasks.
+	- Component Development in Progress: While the new decision tree class can handle Logloss, components like early stopping for single tree and null value handling are still under development and not fully integrated into this release.
 
 ## Installation
 ### Prerequisites
@@ -163,6 +166,7 @@ or download the compressed document on GitHub.
 - **`decision_tree_zhoumath.py`**: Implements the `DecisionTreeZhoumath` class for custom decision tree modeling.
 - **`decision_tree_with_null_zhoumath.py`**: Implements the `DecisionTreeWithNullZhoumath` class, extending `DecisionTreeZhoumath` to handle datasets with missing values (`NaN`).
 - **`decision_tree_helper_zhoumath.py`**: Contains utility functions and helper methods for building and training decision trees, including feature selection and splitting logic.
+- **`decision_tree_logloss_zhoumath.py`**: Implements the `DecisionTreeLoglossZhoumath` class for gradient boost classification tasks with log loss. 
 
 - **`random_forest_zhoumath.py`**: Implements the `RandomForestZhoumath` class, which builds an ensemble of bagging decision trees for improved classification and regressing tasks.
 - **`random_forest_helper_zhoumath.py`**: Contains utility functions and helper methods specific to random forest, such as bootstrap sampling, model training, and feature importance calculation.

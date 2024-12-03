@@ -46,7 +46,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 data = load_breast_cancer(as_frame=True)
 X, y = data.data, data.target
 '''
-data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 11000)
+data = pd.read_csv('../../../HIGGS.csv', header = None, nrows = 55000)
 X = data.iloc[:, 1:]
 y = data.iloc[:, 0]
 '''
@@ -59,14 +59,14 @@ X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.
 X_train = np.array(X_train)
 mask = np.random.uniform(size = X_train.shape) > 1
 X_train[mask] = np.nan
-learning_rate = 0.2
+learning_rate = 0.1
 num_base_trees = 1000
 ensemble_column_rate = 0.8
 ensemble_sample_rate = 0.8
-max_depth = 10
-split_criterion = 'mse'
+max_depth = 6
+split_criterion = 'entropy_gain'
 search_method = 'bfs'
-task = 'regression'
+task = 'classification'
 gradient_boost_model = GradientBoostZhoumath(learning_rate = learning_rate,
                                              num_base_trees=num_base_trees,
                                              ensemble_column_rate=ensemble_column_rate,
@@ -82,7 +82,7 @@ gradient_boost_model.fit(data=X_train,
                          labels=y_train,
                          val_data=X_val,
                          val_labels=y_val,
-                         early_stop_rounds_for_tree=1,
+                         early_stop_rounds_for_tree=None,
                          early_stop_rounds_for_forest=50)
 toc = time.time()
 gap = toc-tic
@@ -126,3 +126,10 @@ print(tmp)
 
 #Save model to a pkl
 gradient_boost_model.to_pkl("gradient_boost_model_zhoumath.pkl") 
+
+
+gradient_boost_model.tree_models[0].predict_proba(X_train)
+
+
+
+

@@ -11,12 +11,13 @@ import os
 import copy
 import warnings
 import numpy as np
-from sklearn.metrics import roc_auc_score
 script_dir = os.path.abspath(os.path.join(os.getcwd(), '../../scripts/decision_tree_zhoumath'))
 sys.path.insert(0, script_dir)
 from random_forest_zhoumath import RandomForestZhoumath
-from decision_tree_zhoumath import DecisionTreeZhoumath, DecisionTreeZhoumathLosloss
-from random_forest_helper_zhoumath import EarlyStopperRF, FeatureImportancesRF
+from decision_tree_zhoumath import DecisionTreeZhoumath
+from decision_tree_logloss_zhoumath import DecisionTreeLoglossZhoumath
+from decision_tree_helper_zhoumath import CategorialModule
+from gradient_boost_helper_zhoumath import EarlyStopperGB, FeatureImportancesGB
 
 # Settings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -72,12 +73,12 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         self.early_stop_rounds_for_tree = early_stop_rounds_for_tree
         self.early_stopper_gb = None
         self.labels_mean = np.mean(self.labels)
-        gbdt_mse_condition = self.task == 'regression' or (self.task == 'classification' and self.split_criterion == 'mse')
-        gbdt_logloss_condition = self.task == 'classification' and self.split_criterion == 'logloss'
+        self.gbdt_mse_condition = self.task == 'regression' or (self.task == 'classification' and self.split_criterion == 'mse')
+        self.gbdt_logloss_condition = self.task == 'classification' and self.split_criterion == 'entropy_gain'
         
-        if gbdt_mse_condition:
+        if self.gbdt_mse_condition:
             self.fit_mse(val_data, val_labels, early_stop_rounds_for_forest)
-        elif gbdt_logloss_condition:
+        elif self.gbdt_logloss_condition:
             self.fit_logloss(val_data, val_labels, early_stop_rounds_for_forest)
         else:
             raise ValueError("MSE is the only supported loss function for regression,"
@@ -96,8 +97,7 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         if (val_data is not None) and (val_labels is not None) and early_stop_rounds_for_forest is not None:
             self.val_data = np.ascontiguousarray(val_data)
             self.val_labels = np.ascontiguousarray(val_labels)
-            self.labels_mean_val = np.mean(self.labels)
-            self.tree_models_predictions_val = self.labels_mean_val * np.ones(self.val_labels.shape)
+            self.tree_models_predictions_val = self.labels_mean * np.ones(self.val_labels.shape)
             self.early_stopper_gb = EarlyStopperGB(val_data=val_data,
                                                    val_labels=val_labels,
                                                    early_stop_rounds=early_stop_rounds_for_forest,
@@ -120,24 +120,31 @@ class GradientBoostZhoumath(RandomForestZhoumath):
     
         return
     
-    def fit_logloss(self, val_data, val_labels, early_stop_rounds_for_forest):    
+    def fit_logloss(self, val_data, val_labels, early_stop_rounds_for_forest):
         self.tree_models_predictions = self.labels_mean * np.ones(self.labels.shape)
         self.tree_models_logodds = np.log(self.labels_mean / (1 - self.labels_mean)) * np.ones(self.labels.shape)
         
         if (val_data is not None) and (val_labels is not None) and early_stop_rounds_for_forest is not None:
             self.val_data = np.ascontiguousarray(val_data)
             self.val_labels = np.ascontiguousarray(val_labels)
-            self.tree_models_predictions_val = self.labels_mean_val * np.ones(self.val_labels.shape)
-            self.tree_models_logodds_val = np.log(self.labels_mean_val / (1 - self.labels_mean_val)) * np.ones(self.val_labels.shape)
+            self.tree_models_predictions_val = self.labels_mean * np.ones(self.val_labels.shape)
+            self.tree_models_logodds_val = np.log(self.labels_mean / (1 - self.labels_mean)) * np.ones(self.val_labels.shape)
             self.early_stopper_gb = EarlyStopperGB(val_data=val_data,
                                                    val_labels=val_labels,
                                                    early_stop_rounds=early_stop_rounds_for_forest,
                                                    verbose=self.verbose_for_ensemble)
+
+        self.categorial_module = CategorialModule(self.data)
+        if np.any(self.categorial_module.is_cat_feature):
+            self.data = self.categorial_module._prepossess_categorial(self.data, self.labels, self.random_state)
+            
+            if self.early_stopper_gb is not None:
+                val_data = self.categorial_module._prepossess_categorial_val(val_data)
+
             
         for i in range(self.num_base_trees):
             labels_residual = self.labels - self.tree_models_predictions
             labels_hessian = self.tree_models_predictions * (1 - self.tree_models_predictions)
-            
             if self.early_stopper_gb is not None:
                 labels_residual_val = self.val_labels - self.tree_models_predictions_val
                 labels_hessian_val = self.tree_models_predictions_val * (1 - self.tree_models_predictions_val)
@@ -175,7 +182,7 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         valid_samples_num = max(np.ceil(self.num_samples * self.ensemble_sample_rate), 2).astype(np.int32)
         valid_samples = np.sort(np.random.choice(np.arange(self.num_samples),
                                                  size=valid_samples_num, replace=False)).astype(np.int32)
-        muted_features_num = np.floor(self.num_features *(1 -  self.ensemble_column_rate)).astype(np.int32)
+        muted_features_num = np.floor(self.num_features *(1 - self.ensemble_column_rate)).astype(np.int32)
         muted_features = np.sort(np.random.choice(np.arange(self.num_features),
                                                   size=muted_features_num, replace=False)).astype(np.int32)
         train_data = self.data[valid_samples, :].copy()
@@ -184,7 +191,7 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         current_decision_tree.fit(data=train_data,
                                   labels=train_residual,
                                   val_data=self.val_data,
-                                  val_labels=train_residual,
+                                  val_labels=val_residual,
                                   early_stop_rounds=self.early_stop_rounds_for_tree)
         self.tree_models.append(current_decision_tree)
         data_prediciton = current_decision_tree.predict_proba(self.data)
@@ -212,7 +219,9 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         :return: Boolean indicating whether early stopping was triggered (True/False).
         """
         np.random.seed(self.random_state + i)
-        current_decision_tree = DecisionTreeZhoumathLosloss(search_method=self.search_method,
+        current_decision_tree = DecisionTreeLoglossZhoumath(task=self.task,
+                                                            split_criterion=self.split_criterion,
+                                                            search_method=self.search_method,
                                                             max_depth=self.max_depth,
                                                             pos_weight=self.pos_weight,
                                                             random_column_rate=self.random_column_rate,
@@ -228,7 +237,7 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         train_data = self.data[valid_samples, :].copy()
         train_data[:, muted_features] = -np.inf
         train_residual = train_residual[valid_samples].copy()
-        train_hessians = train_hessians[valid_samples]
+        train_hessians = train_hessians[valid_samples].copy()
         current_decision_tree.fit(data=train_data,
                                   labels=train_residual,
                                   hessians = train_hessians,
@@ -261,76 +270,35 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         :param data: The input data for prediction.
         :return: A 2D numpy array of predicted probabilities.
         """
-        tree_predictions = np.zeros((data.shape[0], len(self.tree_models) + 1))
-        tree_predictions[:,0] = self.labels_mean * np.ones(data.shape[0])
+        if self.gbdt_logloss_condition:
+            return self.predict_proba_logloss(data)
+            
+        else:
+            tree_predictions = np.zeros((data.shape[0], len(self.tree_models) + 1))
+            tree_predictions[:,0] = self.labels_mean * np.ones(data.shape[0])
+            
+            for i in range(len(self.tree_models)):
+                tree_predictions[:, i+1] = self.tree_models[i].predict_proba(data) * self.learning_rate
+                
+            tree_prediction = tree_predictions.sum(axis = 1)
+            
+            return tree_prediction
+    
+    def predict_proba_logloss(self, data):
+        """
+        Predict the probabilities for the given data.
+        :param data: The input data for prediction.
+        :return: A 2D numpy array of predicted probabilities.
+        """
+        if np.any(self.categorial_module.is_cat_feature):
+            data = self.categorial_module._prepossess_categorial_val(data)
+                
+        tree_logodds = np.zeros((data.shape[0], len(self.tree_models) + 1))
+        tree_logodds[:,0] = np.log(self.labels_mean / (1 - self.labels_mean)) * np.ones(data.shape[0])
         
         for i in range(len(self.tree_models)):
-            tree_predictions[:, i+1] = self.tree_models[i].predict_proba(data) * self.learning_rate
+            tree_logodds[:, i+1] = self.tree_models[i].predict_proba(data) * self.learning_rate
             
-        tree_prediction = tree_predictions.sum(axis = 1)
+        tree_logodds = tree_logodds.sum(axis = 1)
+        tree_prediction = 1 / (1 + np.exp(-tree_logodds))
         return tree_prediction
-
-class EarlyStopperGB(EarlyStopperRF):
-    def __init__(self, val_data, val_labels, early_stop_rounds, verbose):
-        """
-        Early stopping mechanism for the gradient boosting model.
-        :param val_data: The validation data to evaluate the model's performance.
-        :param val_labels: The true labels for the validation data.
-        :param early_stop_rounds: The number of rounds without improvement before stopping.
-        :param verbose: Whether to print verbose output during early stopping.
-        """
-        super().__init__(val_data=val_data,
-                         val_labels=val_labels,
-                         early_stop_rounds=early_stop_rounds,
-                         verbose=verbose)
-
-    def _evaluate_early_stop(self, current_decision_tree, gradientboostzhoumath):
-        """
-        Evaluate the model's performance on the validation data and check if early stopping should be triggered.
-        :param predictions: The predicted labels for the validation data.
-        :return: Boolean indicating whether early stopping should be triggered.
-        """
-        self.current_trees += 1
-        self.feature_importances_cache._renew_feature_importances(current_decision_tree)
-        train_labels = gradientboostzhoumath.labels
-        labels_preds = gradientboostzhoumath.tree_models_predictions
-        val_labels_preds = gradientboostzhoumath.tree_models_predictions_val
-        
-        if gradientboostzhoumath.task == 'classification':
-            train_metric = roc_auc_score(train_labels, labels_preds)
-            val_metric = roc_auc_score(self.val_labels, val_labels_preds)
-            if self.verbose:
-                print(f'Current trees: {self.current_trees}, current train AUC: {train_metric:.3f}, current val AUC: {val_metric:.3f}')
-        
-        if gradientboostzhoumath.task == 'regression':
-            train_metric = 1 - np.mean((train_labels - labels_preds) ** 2) / np.mean((train_labels - train_labels.mean()) ** 2)
-            val_metric = 1 - np.mean((self.val_labels - val_labels_preds) ** 2) / np.mean((self.val_labels - self.val_labels.mean()) ** 2)
-            if self.verbose:
-                print(f'Current trees : {self.current_trees}, current train R2: {train_metric:.3f}, current val R2: {val_metric:.3f}')
-        
-        if val_metric > self.best_metric:
-            self.best_metric = val_metric
-            gradientboostzhoumath.best_tree_models = copy.deepcopy(gradientboostzhoumath.tree_models)
-            gradientboostzhoumath.feature_importances._renew_cache(self.feature_importances_cache)
-            self.feature_importances_cache = FeatureImportancesGB(self.val_data.shape[1])
-            self.current_early_stop_rounds= 0
-        else:
-            self.current_early_stop_rounds += 1
-
-        if self.current_early_stop_rounds >= self.early_stop_rounds:
-            if self.verbose:
-                print(f'Early stop triggered at num trees {self.current_trees}')
-            return True
-        
-        return False
-
-# FeatureImportancesGB Class
-class FeatureImportancesGB(FeatureImportancesRF):
-    def __init__(self, num_features):
-        """
-        Initialize the FeatureImportances for Random Forest.
-        :param num_features: The number of features in the dataset.
-        :return: None
-        """
-        super().__init__(num_features)
-    

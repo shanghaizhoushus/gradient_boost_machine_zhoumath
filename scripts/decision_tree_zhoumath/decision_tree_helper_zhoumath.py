@@ -209,6 +209,63 @@ class EarlyStopper:
             return True
 
         return False
+    
+'''
+# EarlyStopperLogloss Class
+class EarlyStopperLogloss:
+    def __init__(self, val_data, val_labels, val_hessians, early_stop_rounds, verbose = False):
+        """
+        Initialize EarlyStopper.
+        :param val_data: Validation feature data.
+        :param val_labels: Validation labels.
+        :param early_stop_rounds: Number of rounds for early stopping.
+        :param current_max_depth: Current maximum depth of the tree.
+        :param currert_early_stop_rounds: Current number of early stop rounds without improvement.
+        """
+        super().__init__()
+        self.best_metric = np.inf
+
+    def _evaluate_early_stop(self, decisiontreezhoumath, current_node, tree):
+        """
+        Evaluate whether to trigger early stopping.
+        :param decisiontreezhoumath: Instance of the DecisionTreeZhoumath class used for model training and prediction.
+        :param current_node: Current node being processed in the decision tree.
+        :param tree: Current decision tree being evaluated for early stopping.
+        :return: True if early stopping should be triggered, otherwise False.
+        """
+        self.current_max_depth = current_node.depth
+        labels_pred = decisiontreezhoumath.predict_proba(decisiontreezhoumath.data, tree)
+        val_labels_pred = decisiontreezhoumath.predict_proba(self.val_data, tree)
+        train_labels = decisiontreezhoumath.labels
+        
+        if decisiontreezhoumath.task == 'classification':
+            train_metric = roc_auc_score(train_labels, labels_pred)
+            val_metric = roc_auc_score(self.val_labels, val_labels_pred)
+            if self.verbose:
+                print(f'Current depth: {self.current_max_depth - 1}, current train AUC: {train_metric:.3f}, current val AUC: {val_metric:.3f}')
+        
+        if decisiontreezhoumath.task == 'regression':
+            train_metric = 1 - np.mean((train_labels - labels_pred) ** 2) / np.mean((train_labels - train_labels.mean()) ** 2)
+            val_metric = 1 - np.mean((self.val_labels - val_labels_pred) ** 2) / np.mean((self.val_labels - self.val_labels.mean()) ** 2)
+            if self.verbose:
+                print(f'Current depth: {self.current_max_depth - 1}, current train R2: {train_metric:.3f}, current val R2: {val_metric:.3f}')
+
+        if val_metric > self.best_metric:
+            self.best_metric = val_metric
+            decisiontreezhoumath.best_tree = tree.copy()
+            decisiontreezhoumath.feature_importances._renew_cache(decisiontreezhoumath.feature_importances_cache)
+            self.feature_importances_cache = FeatureImportances(self.val_data.shape[1])
+            self.current_early_stop_rounds = 0
+        else:
+            self.current_early_stop_rounds += 1
+
+        if self.current_early_stop_rounds >= self.early_stop_rounds:
+            if self.verbose:
+                print(f'Early stop triggered at depth {self.current_max_depth - 1}')
+            return True
+
+        return False
+'''
 
 # ParentIndices Class
 class ParentIndices:
@@ -340,11 +397,11 @@ class FeatureImportances:
             
         return feature_importances_df
 
-# CatgorialModule Class
-class CatgorialModule:
+# CategorialModule Class
+class CategorialModule:
     def __init__(self, data):
         """
-        Initialize the CatgorialModule class to identify categorical features.
+        Initialize the CategorialModule class to identify categorical features.
         :param data: Feature data, can contain both numerical and categorical features.
         """
         self.is_cat_feature = np.zeros(data.shape[1], dtype=bool)
@@ -357,7 +414,7 @@ class CatgorialModule:
                 if ~np.isnan(np.float64(data[j, i])):
                     break
 
-    def _preprocess_catgorial(self, data, labels, random_state):
+    def _preprocess_categorial(self, data, labels, random_state):
         """
         Preprocess categorical features in the training data by encoding them based on their mean target value.
         :param data: Feature data containing categorical features.
@@ -379,7 +436,7 @@ class CatgorialModule:
             self.cat_map[i] = group
 
         self.nafiller = labels.mean()
-        cat_features_trans = self._transform_catgorial(cat_features)
+        cat_features_trans = self._transform_categorial(cat_features)
         num_features = data
         num_features[:, self.is_cat_feature] = 0
         num_features = DecisionTreeZhoumath._add_perturbation(num_features, random_state)
@@ -387,7 +444,7 @@ class CatgorialModule:
         data = np.ascontiguousarray(data.astype(np.float64))
         return data
 
-    def _preprocess_catgorial_val(self, data):
+    def _preprocess_categorial_val(self, data):
         """
         Preprocess categorical features in the validation data by encoding them based on their mapping from training data.
         :param data: Validation feature data containing categorical features.
@@ -397,14 +454,14 @@ class CatgorialModule:
         cat_features = np.zeros(shape=data.shape, dtype=object)
         cat_features[:, self.is_cat_feature] = data[:, self.is_cat_feature]
         cat_features = np.array(pd.DataFrame(cat_features).fillna("missing"))
-        cat_features_trans = self._transform_catgorial(cat_features)
+        cat_features_trans = self._transform_categorial(cat_features)
         num_features = data
         num_features[:, self.is_cat_feature] = 0
         val_data = num_features + cat_features_trans
         val_data = np.ascontiguousarray(val_data.astype(np.float64))
         return val_data
 
-    def _transform_catgorial(self, cat_features):
+    def _transform_categorial(self, cat_features):
         """
         Transform categorical features into numerical values using mappings learned during training.
         :param cat_features: Feature data containing categorical features.

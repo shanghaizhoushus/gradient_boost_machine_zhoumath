@@ -63,15 +63,17 @@ learning_rate = 0.1
 num_base_trees = 1000
 ensemble_column_rate = 0.8
 ensemble_sample_rate = 0.8
-max_depth = 6
+max_depth = 10
+lambda_l2 = 0
 split_criterion = 'entropy_gain'
 search_method = 'bfs'
 task = 'classification'
-gradient_boost_model = GradientBoostZhoumath(learning_rate = learning_rate,
+gradient_boost_model = GradientBoostZhoumath(learning_rate=learning_rate,
                                              num_base_trees=num_base_trees,
                                              ensemble_column_rate=ensemble_column_rate,
                                              ensemble_sample_rate=ensemble_sample_rate,
-                                             task = task,
+                                             task=task,
+                                             lambda_l2=lambda_l2,
                                              max_depth=max_depth,
                                              split_criterion=split_criterion,
                                              search_method=search_method,
@@ -82,7 +84,7 @@ gradient_boost_model.fit(data=X_train,
                          labels=y_train,
                          val_data=X_val,
                          val_labels=y_val,
-                         early_stop_rounds_for_tree=None,
+                         early_stop_rounds_for_tree=1,
                          early_stop_rounds_for_forest=50)
 toc = time.time()
 gap = toc-tic
@@ -126,10 +128,3 @@ print(tmp)
 
 #Save model to a pkl
 gradient_boost_model.to_pkl("gradient_boost_model_zhoumath.pkl") 
-
-
-gradient_boost_model.tree_models[0].predict_proba(X_train)
-
-
-
-

@@ -61,9 +61,9 @@ num_base_trees = 1000
 ensemble_column_rate = 0.8
 ensemble_sample_rate = 0.8
 max_depth = 10
-split_criterion = 'mse'
+split_criterion = 'entropy_gain'
 search_method = 'bfs'
-task = 'regression'
+task = 'classification'
 random_forest_model = RandomForestZhoumath(num_base_trees=num_base_trees,
                                            ensemble_column_rate=ensemble_column_rate,
                                            ensemble_sample_rate=ensemble_sample_rate,
@@ -79,7 +79,7 @@ random_forest_model.fit(data=X_train,
                         val_data=X_val,
                         val_labels=y_val,
                         early_stop_rounds_for_tree=1,
-                        early_stop_rounds_for_forest=20)
+                        early_stop_rounds_for_forest=50)
 toc = time.time()
 gap = toc-tic
 print(f'The decision-tree-zhoumath-with-null-zhoumath model is bulit in {gap:.5f} seconds.')

@@ -1,4 +1,4 @@
-# Gradient Boosting Zhoumath Implementation - Zhoushus (v0.3.2)
+# Gradient Boosting Zhoumath Implementation - Zhoushus (v0.3.3)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -109,20 +109,21 @@ This project provides a basic implementation of a decision tree and tree-based e
 	- Expanded Gradient Boosting Support: The Gradient Boosting implementation now supports a Logloss version for binary classification, extending its utility for diverse machine learning tasks.
 	- Component Development in Progress: While the new decision tree class can handle Logloss, components like early stopping for single tree and null value handling are still under development and not fully integrated into this release.
 
+  - **New in 0.3.3:**
+	- Early Stopping by Tree Depth: Added support for early stopping based on tree depth, improving model efficiency by preventing overfitting during training.
+	- Missing Value Support: The implementation now supports handling missing values in the dataset, making the model more robust and applicable to real-world data.
+	- L2 Regularization: Introduced L2 regularization to reduce model complexity and prevent overfitting, enhancing generalization capabilities.
+
 ## Installation
 ### Prerequisites
 The project requires Python 3.6 or higher. To install the necessary dependencies, run the following command:
-
 ```sh
 pip install -r requirements.txt
 ```
-
 You can clone the project from GitHub:
-
 ```bash
 git clone https://github.com/shanghaizhoushus/gradient_boost_machine_zhoumath.git
 ```
-
 or download the compressed document on GitHub.
 
 ### Dependencies
@@ -136,15 +137,15 @@ or download the compressed document on GitHub.
 
 ## File Structure
 ```
-.
 ├── LICENSE
 ├── README.md
-├── decision_tree.py
 ├── requirements.txt
 ├── scripts
 │   └── decision_tree_zhoumath
 │       ├── decision_tree_zhoumath.py
 │       ├── decision_tree_with_null_zhoumath.py
+│       ├── decision_tree_logloss_zhoumath.py
+│       ├── decision_tree_with_null_logloss_zhoumath.py
 │       └── decision_tree_helper_zhoumath.py
 │   └── random_forest_zhoumath
 │       ├── random_forest_zhoumath.py
@@ -167,6 +168,7 @@ or download the compressed document on GitHub.
 - **`decision_tree_with_null_zhoumath.py`**: Implements the `DecisionTreeWithNullZhoumath` class, extending `DecisionTreeZhoumath` to handle datasets with missing values (`NaN`).
 - **`decision_tree_helper_zhoumath.py`**: Contains utility functions and helper methods for building and training decision trees, including feature selection and splitting logic.
 - **`decision_tree_logloss_zhoumath.py`**: Implements the `DecisionTreeLoglossZhoumath` class for gradient boost classification tasks with log loss. 
+- **`decision_tree_with_null_logloss_zhoumath.py`**: Implements the `DecisionTreeWithNullLoglossZhoumath` class, extending `DecisionTreeLoglossZhoumath` to handle datasets with missing values (`NaN`).
 
 - **`random_forest_zhoumath.py`**: Implements the `RandomForestZhoumath` class, which builds an ensemble of bagging decision trees for improved classification and regressing tasks.
 - **`random_forest_helper_zhoumath.py`**: Contains utility functions and helper methods specific to random forest, such as bootstrap sampling, model training, and feature importance calculation.
@@ -181,8 +183,6 @@ or download the compressed document on GitHub.
     - **`random_forest_zhoumath_example_script.py`**: A script demonstrating how to train and evaluate a random forest using a dataset.
   - **`gradient_boost_zhoumath_examples/`**: Contains examples for using `GradientBoostZhoumath`, including a script for training and evaluating a gradient boost model.
     - **`gradient_boost_zhoumath_example_script.py`**: A script demonstrating how to train and evaluate a gradient boost using a dataset.
-
-
 
 ## Usage
 ### Example: Training and Evaluating the Decision Tree
@@ -211,7 +211,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.3.1**
+Current version: **0.3.3**
 
 ## Author
 - **Zhoushus**
@@ -221,4 +221,3 @@ Current version: **0.3.1**
 ## Acknowledgements
 - `scikit-learn` for providing easy access to datasets and evaluation tools.
 - The open-source community for ongoing inspiration and support.
-

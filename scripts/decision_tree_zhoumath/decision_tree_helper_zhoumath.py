@@ -210,10 +210,10 @@ class EarlyStopper:
 
         return False
     
-'''
+
 # EarlyStopperLogloss Class
-class EarlyStopperLogloss:
-    def __init__(self, val_data, val_labels, val_hessians, early_stop_rounds, verbose = False):
+class EarlyStopperLogloss(EarlyStopper):
+    def __init__(self, val_data, val_labels, early_stop_rounds, verbose = False):
         """
         Initialize EarlyStopper.
         :param val_data: Validation feature data.
@@ -222,8 +222,7 @@ class EarlyStopperLogloss:
         :param current_max_depth: Current maximum depth of the tree.
         :param currert_early_stop_rounds: Current number of early stop rounds without improvement.
         """
-        super().__init__()
-        self.best_metric = np.inf
+        super().__init__(val_data, val_labels, early_stop_rounds, verbose)
 
     def _evaluate_early_stop(self, decisiontreezhoumath, current_node, tree):
         """
@@ -234,21 +233,23 @@ class EarlyStopperLogloss:
         :return: True if early stopping should be triggered, otherwise False.
         """
         self.current_max_depth = current_node.depth
-        labels_pred = decisiontreezhoumath.predict_proba(decisiontreezhoumath.data, tree)
-        val_labels_pred = decisiontreezhoumath.predict_proba(self.val_data, tree)
         train_labels = decisiontreezhoumath.labels
+        train_y = (decisiontreezhoumath.labels > 0).astype(np.int32)
+        train_prediction = train_y - train_labels
+        train_logodds = np.log(train_prediction / (1 - train_prediction))
+        train_logodds_delta = decisiontreezhoumath.predict_proba(decisiontreezhoumath.data, tree)
+        train_logodds_new = train_logodds + train_logodds_delta
+        train_metric = np.sum(train_y * train_logodds_new) - np.sum(np.log(1 + np.exp(train_logodds_new)))
+        val_y = (self.val_labels > 0).astype(np.int32)
+        val_prediction = val_y - self.val_labels
+        val_logodds = np.log(val_prediction / (1 - val_prediction))
+        val_logodds_delta = decisiontreezhoumath.predict_proba(self.val_data, tree)
+        val_logodds_new = val_logodds + val_logodds_delta
+        val_metric = np.sum(val_y * val_logodds_new) - np.sum(np.log(1 + np.exp(val_logodds_new)))
         
-        if decisiontreezhoumath.task == 'classification':
-            train_metric = roc_auc_score(train_labels, labels_pred)
-            val_metric = roc_auc_score(self.val_labels, val_labels_pred)
-            if self.verbose:
-                print(f'Current depth: {self.current_max_depth - 1}, current train AUC: {train_metric:.3f}, current val AUC: {val_metric:.3f}')
-        
-        if decisiontreezhoumath.task == 'regression':
-            train_metric = 1 - np.mean((train_labels - labels_pred) ** 2) / np.mean((train_labels - train_labels.mean()) ** 2)
-            val_metric = 1 - np.mean((self.val_labels - val_labels_pred) ** 2) / np.mean((self.val_labels - self.val_labels.mean()) ** 2)
-            if self.verbose:
-                print(f'Current depth: {self.current_max_depth - 1}, current train R2: {train_metric:.3f}, current val R2: {val_metric:.3f}')
+        if self.verbose:
+            print(f"Current depth: {self.current_max_depth - 1}, current train log loss:"
+                  f"{-train_metric:.3f}, current val log loss: {-val_metric:.3f}")
 
         if val_metric > self.best_metric:
             self.best_metric = val_metric
@@ -265,7 +266,6 @@ class EarlyStopperLogloss:
             return True
 
         return False
-'''
 
 # ParentIndices Class
 class ParentIndices:

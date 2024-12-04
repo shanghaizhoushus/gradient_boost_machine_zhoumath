@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # DecisionTree class
 class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
     def __init__(self, task, split_criterion, search_method, max_depth=None, pos_weight=1,
-                 random_column_rate=1, min_split_sample_rate=0, min_leaf_sample_rate=0, verbose=True):
+                 random_column_rate=1, min_split_sample_rate=0, min_leaf_sample_rate=0, lambda_l2=0, verbose=True):
         """
         Initialize the decision tree.
         :param split_criterion: Criterion for splitting ("entropy_gain", "entropy_gain_ratio", or "gini").
@@ -26,9 +26,9 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         :param max_depth: Maximum depth of the tree.
         :param pos_weight: Weight for positive class.
         """
-       
         super().__init__(task, split_criterion, search_method, max_depth, pos_weight, random_column_rate,
                      min_split_sample_rate, min_leaf_sample_rate, verbose)
+        self.lambda_l2 = lambda_l2
     
     def fit(self, data, labels, hessians, val_data=None, val_labels=None, val_hessians=None,
             early_stop_rounds=1, random_state=42):
@@ -43,11 +43,10 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         :param random_state: Random seed for reproducibility.
         :return: None. The tree is trained in-place and stored in `self.tree`.
         """
-        '''
-        from decision_tree_with_null_zhoumath_logloss import DecisionTreeWithNullZhoumathLogloss
+        from decision_tree_with_null_logloss_zhoumath import DecisionTreeWithNullLoglossZhoumath
 
         if np.any(np.equal(data, np.nan)):
-            tree_with_null = DecisionTreeWithNullZhoumathLogloss(
+            tree_with_null = DecisionTreeWithNullLoglossZhoumath(
                 split_criterion=self.split_criterion,
                 search_method=self.search_method,
                 max_depth=self.max_depth
@@ -57,8 +56,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
             self.feature_importances = tree_with_null.feature_importances
         
         else:
-            '''
-        self._fitting(data, labels, hessians, val_data, val_labels, val_hessians, early_stop_rounds, random_state)
+            self._fitting(data, labels, hessians, val_data, val_labels, val_hessians, early_stop_rounds, random_state)
         
     def _fitting(self, data, labels, hessians, val_data, val_labels, val_hessians, early_stop_rounds, random_state):
         """
@@ -71,8 +69,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         :param early_stop_rounds: Number of rounds without improvement before early stopping.
         :param random_state: Random seed for reproducibility.
         """
-        #from decision_tree_helper_zhoumath import EarlyStopperLogloss, FeatureImportances
-        from decision_tree_helper_zhoumath import FeatureImportances, CategorialModule
+        from decision_tree_helper_zhoumath import FeatureImportances, EarlyStopperLogloss, CategorialModule
         
         data = np.ascontiguousarray(data)
         data = DecisionTreeZhoumath._add_perturbation(data, random_state)
@@ -84,8 +81,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         if early_stop_rounds and self.search_method != 'bfs':
             raise ValueError("Early Stopping requires 'bfs' as the search method.")
         
-        '''
-        if (val_data is not None) and (val_labels is not None) and (val_hessians is not None) and (early_stop_rounds is not None):
+        if (val_data is not None) and (val_labels is not None) and (early_stop_rounds is not None):
             if self.verbose:
                 print("Early stop mode is opened. Search method can only be BFS.")
                 
@@ -94,7 +90,6 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
             val_hessians = np.ascontiguousarray(val_hessians)
             early_stopper = EarlyStopperLogloss(val_data=val_data,
                                                 val_labels=val_labels,
-                                                val_hessians=val_hessians,
                                                 early_stop_rounds=early_stop_rounds,
                                                 verbose=self.verbose)
             self.search_method = 'bfs'
@@ -102,7 +97,6 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         else:
             early_stopper = None
             
-        '''
         self.data = data
         self.labels = labels
         self.hessians = hessians
@@ -164,7 +158,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
             min_split_sample_rate_condition = current_node.row_indices.shape[0] < (self.labels.shape[0] * self.min_split_sample_rate)
             
             if (self.max_depth is not None and current_node.depth >= self.max_depth) or np.unique(labels).size == 1 or min_split_sample_rate_condition:
-                DecisionTreeLoglossZhoumath._finallize_node(labels, hessians, tree, current_node)
+                DecisionTreeLoglossZhoumath._finallize_node(labels, hessians, self.lambda_l2, tree, current_node)
                 continue
 
             current_best_status, filtered_indices = self._choose_best_split(current_node)
@@ -173,7 +167,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
             min_leaf_sample_rate_condition = min_right_leaf_sample_rate_condition or min_left_leaf_sample_rate_condition
 
             if current_best_status.best_feature is None or current_best_status.best_metric <= 0 or min_leaf_sample_rate_condition:
-                DecisionTreeLoglossZhoumath._finallize_node(labels, hessians, tree, current_node)
+                DecisionTreeLoglossZhoumath._finallize_node(labels, hessians, self.lambda_l2, tree, current_node)
                 continue
 
             current_tree_node = TreeNode(feature=current_best_status.best_feature,
@@ -181,7 +175,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
                                          null_direction=current_best_status.best_null_direction)
 
             if early_stopper is not None:
-                current_tree_node.prob = np.sum(labels) / np.sum(hessians)
+                current_tree_node.prob = np.sum(labels) / (np.sum(hessians) + self.lambda_l2)
                 
             DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
             right_node = CollectionNode(row_indices=current_best_status.right_indices,
@@ -206,7 +200,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         return tree if early_stopper is None else self.best_tree.copy()
     
     @staticmethod
-    def _finallize_node(labels, hessians, tree, current_node):
+    def _finallize_node(labels, hessians, lambda_l2, tree, current_node):
         """
         Finalize a node by calculating its probability and adding it to the tree.
         :param labels: Labels for the current node.
@@ -216,7 +210,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         """
         from decision_tree_helper_zhoumath import TreeNode
         
-        current_tree_node = TreeNode(prob = np.sum(labels) / np.sum(hessians))
+        current_tree_node = TreeNode(prob = np.sum(labels) / np.sum(hessians) + lambda_l2)
         DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
 
     def _choose_best_split(self, current_node):
@@ -232,7 +226,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         from decision_tree_helper_zhoumath import BestStatus
         
         filtered_indices, filtered_sorted_labels, filtered_sorted_hessians, base_metric = self._init_best_split(current_node, False)
-        metrics = DecisionTreeLoglossZhoumath._calculate_metrics_logloss(filtered_sorted_labels, filtered_sorted_hessians, base_metric)
+        metrics = DecisionTreeLoglossZhoumath._calculate_metrics_logloss(filtered_sorted_labels, filtered_sorted_hessians, base_metric, self.lambda_l2)
         num_features = filtered_sorted_labels.shape[1]
         
         if self.random_column_rate < 1:
@@ -260,24 +254,24 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         filtered_indices = current_node.parent_indices._filter_sorted_indices(current_node.row_indices, isnull)
         filtered_sorted_labels = np.ascontiguousarray(self.labels[filtered_indices.parent_sorted_indices])
         filtered_sorted_hessians = np.ascontiguousarray(self.hessians[filtered_indices.parent_sorted_indices])
-        base_metric = DecisionTreeLoglossZhoumath._calculate_base_metric(filtered_sorted_labels[:, 0], filtered_sorted_hessians[:, 0])
+        base_metric = DecisionTreeLoglossZhoumath._calculate_base_metric(filtered_sorted_labels[:, 0], filtered_sorted_hessians[:, 0], self.lambda_l2)
         return filtered_indices, filtered_sorted_labels, filtered_sorted_hessians, base_metric
         
     @staticmethod
     @njit
-    def _calculate_base_metric(labels, hessians):
+    def _calculate_base_metric(labels, hessians, lambda_l2):
         """
         Calculate the base metric for the given labels and hessians.
         :param labels: Labels.
         :param hessians: Hessians for gradient boosting.
         :return: Base metric value.
         """
-        base_metric = -0.5 * ((np.sum(labels) ** 2)/(np.sum(hessians)))
+        base_metric = -0.5 * ((np.sum(labels) ** 2)/(np.sum(hessians) + lambda_l2))
         return base_metric
         
     @staticmethod
     @njit
-    def _calculate_metrics_logloss(sorted_labels, sorted_hessians, base_metric):
+    def _calculate_metrics_logloss(sorted_labels, sorted_hessians, base_metric, lambda_l2):
         """
         Calculate the log loss reduction for each potential split threshold.
         The method computes the weighted log loss after splitting the data based on each possible threshold.
@@ -294,7 +288,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
                                                                     sorted_labels_total_cumsum[-1, :-1])))[:-1, :]
         left_cumsum_square = np.square(left_cumsum)
         right_cumsum = np.sum(sorted_labels[:, 0]) - left_cumsum
-        right_cumsum_aquare = np.square(right_cumsum)
+        right_cumsum_square = np.square(right_cumsum)
         sorted_hessians_t = sorted_hessians.T
         sorted_hessians_t = np.ascontiguousarray(sorted_hessians_t)
         sorted_hessians_total_cumsum = sorted_hessians_t.reshape(-1).cumsum().reshape(sorted_hessians_t.shape).T
@@ -302,7 +296,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         left_hessians_cumsum = (sorted_hessians_total_cumsum - np.concatenate((np.array([0], dtype=np.int64),
                                                                                sorted_hessians_total_cumsum[-1, :-1])))[:-1, :]
         right_hessians_cumsum = np.sum(sorted_hessians[:, 0]) - left_hessians_cumsum
-        left_loss = -0.5 * (left_cumsum_square / left_hessians_cumsum)
-        right_loss = -0.5 * (right_cumsum_aquare / right_hessians_cumsum)
+        left_loss = -0.5 * (left_cumsum_square / (left_hessians_cumsum + lambda_l2))
+        right_loss = -0.5 * (right_cumsum_square / (right_hessians_cumsum + lambda_l2))
         sum_loss = left_loss + right_loss
         return base_metric - sum_loss

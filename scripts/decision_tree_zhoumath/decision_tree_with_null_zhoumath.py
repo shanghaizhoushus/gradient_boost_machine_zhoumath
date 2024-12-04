@@ -27,17 +27,14 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
         root_collection_node = CollectionNode(depth=0,
                                               row_indices=np.arange(self.labels.shape[0]),
                                               parent_indices=root_indices)
-
         return root_collection_node
     
-
     def _choose_best_split(self, current_node):
         """
         Determine the best split for the current node, considering missing values.
         :param current_node: Current node being processed.
         :return: Best split status, filtered sorted indices, and filtered null indices.
         """
-        
         filtered_indices, selected_labels, base_metric = self._init_best_split(current_node, self.pos_weight, True)
         intrinsic_value = None
         
@@ -58,7 +55,6 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
             filtered_indices = ParentIndices()
             
         self.feature_importances._renew_feature_importances(current_best_status)
-
         return current_best_status, filtered_indices
     
     def _iterate_features(self, num_features, current_best_status, filtered_indices, base_metric, intrinsic_value, muted_columns):
@@ -92,9 +88,9 @@ class DecisionTreeWithNullZhoumath(DecisionTreeZhoumath):
                 if self.split_criterion == 'mse':
                     if self.pos_weight != 1 and self.task == 'classification':
                         sorted_labels[sorted_labels == 1] = self.pos_weight
-                    metrics = DecisionTreeZhoumath._calculate_metrics_mse(sorted_labels, base_metric)
+                    metrics = DecisionTreeWithNullZhoumath._calculate_metrics_mse(sorted_labels, base_metric)
                 else:
-                    metrics = DecisionTreeZhoumath._calculate_metrics(sorted_labels, base_metric, self.pos_weight, self.split_criterion)
+                    metrics = DecisionTreeWithNullZhoumath._calculate_metrics(sorted_labels, base_metric, self.pos_weight, self.split_criterion)
                     
                 if self.split_criterion == 'entropy_gain_ratio':
                     intrinsic_value = intrinsic_value.reshape(-1)

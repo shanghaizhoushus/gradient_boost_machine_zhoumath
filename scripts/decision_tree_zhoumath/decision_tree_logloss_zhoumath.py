@@ -18,7 +18,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # DecisionTree class
 class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
     def __init__(self, task, split_criterion, search_method, max_depth=None, pos_weight=1,
-                 random_column_rate=1, min_split_sample_rate=0, min_leaf_sample_rate=0, lambda_l2=0, verbose=True):
+                 random_column_rate=1, min_split_sample_rate=0, min_leaf_sample_rate=0,
+                 lambda_l1 = 0, lambda_l2=0, verbose=True):
         """
         Initialize the decision tree.
         :param split_criterion: Criterion for splitting ("entropy_gain", "entropy_gain_ratio", or "gini").
@@ -28,6 +29,8 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         """
         super().__init__(task, split_criterion, search_method, max_depth, pos_weight, random_column_rate,
                      min_split_sample_rate, min_leaf_sample_rate, verbose)
+        
+        self.lambda_l1 = lambda_l1
         self.lambda_l2 = lambda_l2
     
     def fit(self, data, labels, hessians, val_data=None, val_labels=None, val_hessians=None,
@@ -158,7 +161,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
             min_split_sample_rate_condition = current_node.row_indices.shape[0] < (self.labels.shape[0] * self.min_split_sample_rate)
             
             if (self.max_depth is not None and current_node.depth >= self.max_depth) or np.unique(labels).size == 1 or min_split_sample_rate_condition:
-                DecisionTreeLoglossZhoumath._finallize_node(labels, hessians, self.lambda_l2, tree, current_node)
+                DecisionTreeLoglossZhoumath._finallize_node(labels, hessians, self.lambda_l1, self.lambda_l2, tree, current_node)
                 continue
 
             current_best_status, filtered_indices = self._choose_best_split(current_node)
@@ -167,7 +170,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
             min_leaf_sample_rate_condition = min_right_leaf_sample_rate_condition or min_left_leaf_sample_rate_condition
 
             if current_best_status.best_feature is None or current_best_status.best_metric <= 0 or min_leaf_sample_rate_condition:
-                DecisionTreeLoglossZhoumath._finallize_node(labels, hessians, self.lambda_l2, tree, current_node)
+                DecisionTreeLoglossZhoumath._finallize_node(labels, hessians, self.lambda_l1, self.lambda_l2, tree, current_node)
                 continue
 
             current_tree_node = TreeNode(feature=current_best_status.best_feature,
@@ -175,7 +178,8 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
                                          null_direction=current_best_status.best_null_direction)
 
             if early_stopper is not None:
-                current_tree_node.prob = np.sum(labels) / (np.sum(hessians) + self.lambda_l2)
+                sum_labels = np.sign(np.sum(labels)) * np.max([np.abs(np.sum(labels)) - self.lambda_l1, 0])
+                current_tree_node.prob = sum_labels / (np.sum(hessians) + self.lambda_l2)
                 
             DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
             right_node = CollectionNode(row_indices=current_best_status.right_indices,
@@ -200,7 +204,7 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         return tree if early_stopper is None else self.best_tree.copy()
     
     @staticmethod
-    def _finallize_node(labels, hessians, lambda_l2, tree, current_node):
+    def _finallize_node(labels, hessians, lambda_l1, lambda_l2, tree, current_node):
         """
         Finalize a node by calculating its probability and adding it to the tree.
         :param labels: Labels for the current node.
@@ -210,7 +214,8 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         """
         from decision_tree_helper_zhoumath import TreeNode
         
-        current_tree_node = TreeNode(prob = np.sum(labels) / np.sum(hessians) + lambda_l2)
+        sum_labels = np.sign(np.sum(labels)) * np.max([np.abs(np.sum(labels)) - lambda_l1, 0])
+        current_tree_node = TreeNode(prob = sum_labels / np.sum(hessians) + lambda_l2)
         DecisionTreeZhoumath._add_node_to_tree(tree, current_node, current_tree_node)
 
     def _choose_best_split(self, current_node):
@@ -226,7 +231,18 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         from decision_tree_helper_zhoumath import BestStatus
         
         filtered_indices, filtered_sorted_labels, filtered_sorted_hessians, base_metric = self._init_best_split(current_node, False)
-        metrics = DecisionTreeLoglossZhoumath._calculate_metrics_logloss(filtered_sorted_labels, filtered_sorted_hessians, base_metric, self.lambda_l2)
+        
+        if self.lambda_l1 > 0:
+            labels = filtered_sorted_labels[:, 0]
+            sum_labels_l1 = np.max([np.abs(np.sum(labels)) - self.lambda_l1, 0])
+            base_metric = base_metric * (sum_labels_l1 ** 2 / (np.sum(labels) ** 2))
+            metrics = DecisionTreeLoglossZhoumath._calculate_metrics_logloss_l1(filtered_sorted_labels, filtered_sorted_hessians,
+                                                                                base_metric, self.lambda_l1, self.lambda_l2)
+            
+        else:
+            metrics = DecisionTreeLoglossZhoumath._calculate_metrics_logloss(filtered_sorted_labels, filtered_sorted_hessians,
+                                                                             base_metric, self.lambda_l2)
+
         num_features = filtered_sorted_labels.shape[1]
         
         if self.random_column_rate < 1:
@@ -289,6 +305,39 @@ class DecisionTreeLoglossZhoumath(DecisionTreeZhoumath):
         left_cumsum_square = np.square(left_cumsum)
         right_cumsum = np.sum(sorted_labels[:, 0]) - left_cumsum
         right_cumsum_square = np.square(right_cumsum)
+        sorted_hessians_t = sorted_hessians.T
+        sorted_hessians_t = np.ascontiguousarray(sorted_hessians_t)
+        sorted_hessians_total_cumsum = sorted_hessians_t.reshape(-1).cumsum().reshape(sorted_hessians_t.shape).T
+        sorted_hessians_total_cumsum = np.ascontiguousarray(sorted_hessians_total_cumsum)
+        left_hessians_cumsum = (sorted_hessians_total_cumsum - np.concatenate((np.array([0], dtype=np.int64),
+                                                                               sorted_hessians_total_cumsum[-1, :-1])))[:-1, :]
+        right_hessians_cumsum = np.sum(sorted_hessians[:, 0]) - left_hessians_cumsum
+        left_loss = -0.5 * (left_cumsum_square / (left_hessians_cumsum + lambda_l2))
+        right_loss = -0.5 * (right_cumsum_square / (right_hessians_cumsum + lambda_l2))
+        sum_loss = left_loss + right_loss
+        return base_metric - sum_loss
+    
+    @staticmethod
+    def _calculate_metrics_logloss_l1(sorted_labels, sorted_hessians, base_metric, lambda_l1, lambda_l2):
+        """
+        Calculate the log loss reduction for each potential split threshold.
+        The method computes the weighted log loss after splitting the data based on each possible threshold.
+        :param sorted_labels: Labels sorted by the feature values.
+        :param sorted_hessians: Hessians sorted by the feature values.
+        :param base_metric: The base metric before the split.
+        :return: Log loss reduction for each potential split threshold.
+        """
+        sorted_labels_t = sorted_labels.T
+        sorted_labels_t = np.ascontiguousarray(sorted_labels_t)
+        sorted_labels_total_cumsum = sorted_labels_t.reshape(-1).cumsum().reshape(sorted_labels_t.shape).T
+        sorted_labels_total_cumsum = np.ascontiguousarray(sorted_labels_total_cumsum)
+        left_cumsum = (sorted_labels_total_cumsum - np.concatenate((np.array([0], dtype=np.int64),
+                                                                    sorted_labels_total_cumsum[-1, :-1])))[:-1, :]
+        left_cumsum_l1 = np.max([np.abs(left_cumsum) - lambda_l1, np.zeros(left_cumsum.shape)], axis = 0)
+        left_cumsum_square = np.square(left_cumsum_l1)
+        right_cumsum = np.sum(sorted_labels[:, 0]) - left_cumsum
+        right_cumsum_l1 = np.max([np.abs(right_cumsum) - lambda_l1, np.zeros(right_cumsum.shape)], axis = 0)
+        right_cumsum_square = np.square(right_cumsum_l1)
         sorted_hessians_t = sorted_hessians.T
         sorted_hessians_t = np.ascontiguousarray(sorted_hessians_t)
         sorted_hessians_total_cumsum = sorted_hessians_t.reshape(-1).cumsum().reshape(sorted_hessians_t.shape).T

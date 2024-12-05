@@ -36,6 +36,11 @@ class DecisionTreeWithNullLoglossZhoumath(DecisionTreeLoglossZhoumath):
         :return: Best split status, filtered sorted indices, and filtered null indices.
         """
         filtered_indices, selected_labels, selected_hessians, base_metric = self._init_best_split(current_node, True)
+        
+        if self.lambda_l1 > 0:
+            sum_labels_l1 = np.max([np.abs(np.sum(selected_labels)) - self.lambda_l1, 0])
+            base_metric = base_metric * (sum_labels_l1 ** 2 / (np.sum(selected_labels) ** 2))
+
         num_features = self.data.shape[1]
         current_best_status = BestStatus()
         
@@ -80,7 +85,15 @@ class DecisionTreeWithNullLoglossZhoumath(DecisionTreeLoglossZhoumath):
                 
                 sorted_labels = np.ascontiguousarray(self.labels[sorted_indices])
                 sorted_hessians = np.ascontiguousarray(self.hessians[sorted_indices])
-                metrics = DecisionTreeWithNullLoglossZhoumath._calculate_metrics(sorted_labels, sorted_hessians, base_metric, self.lambda_l2)
+                
+                if self.lambda_l1 > 0:
+                    metrics = DecisionTreeWithNullLoglossZhoumath._calculate_metrics(sorted_labels, sorted_hessians,
+                                                                                     base_metric, self.lambda_l2)
+                else:
+                    metrics = DecisionTreeWithNullLoglossZhoumath._calculate_metrics_l1(sorted_labels, sorted_hessians,
+                                                                                        base_metric, self.lambda_l1,
+                                                                                        self.lambda_l2)
+                    
                 current_best_status._renew_best_status_null(metrics, sorted_data, feature_index, null_direction)
                 
         return current_best_status
@@ -107,3 +120,28 @@ class DecisionTreeWithNullLoglossZhoumath(DecisionTreeLoglossZhoumath):
         right_loss = -0.5 * (right_cumsum_square / (right_hessians_cumsum + lambda_l2))
         sum_loss = left_loss + right_loss
         return base_metric - sum_loss
+    
+    @staticmethod
+    def _calculate_metrics_l1(sorted_labels, sorted_hessians, base_metric, lambda_l1, lambda_l2):
+        """
+        Calculate information gain for potential split thresholds considering missing values.
+        :param sorted_labels: Labels sorted by the feature values.
+        :param base_metric: Base metric before the split.
+        :param pos_weight: Weight for positive class.
+        :param gini: Indicator for Gini impurity.
+        :return: Information gain for each potential threshold.
+        """
+        left_cumsum = np.cumsum(sorted_labels)[:-1]
+        left_cumsum = np.ascontiguousarray(left_cumsum)
+        left_cumsum_l1 = np.max([np.abs(left_cumsum) - lambda_l1, np.zeros(left_cumsum.shape)], axis = 0)
+        right_cumsum = sorted_labels.sum() - left_cumsum
+        right_cumsum_l1 = np.max([np.abs(right_cumsum) - lambda_l1, np.zeros(right_cumsum.shape)], axis = 0)
+        left_cumsum_square = np.square(left_cumsum_l1)
+        right_cumsum_square = np.square(right_cumsum_l1)
+        left_hessians_cumsum = np.cumsum(sorted_hessians)[:-1]
+        right_hessians_cumsum = np.sum(sorted_hessians) - left_hessians_cumsum
+        left_loss = -0.5 * (left_cumsum_square / (left_hessians_cumsum + lambda_l2))
+        right_loss = -0.5 * (right_cumsum_square / (right_hessians_cumsum + lambda_l2))
+        sum_loss = left_loss + right_loss
+        return base_metric - sum_loss
+

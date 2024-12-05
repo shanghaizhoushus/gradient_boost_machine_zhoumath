@@ -1,4 +1,4 @@
-# Gradient Boosting Zhoumath Implementation - Zhoushus (v0.3.3)
+# Gradient Boosting Zhoumath Implementation - Zhoushus (v0.3.4)
 
 ## Overview
 This project provides a basic implementation of a decision tree and tree-based ensemble learning algorithms like random forest and gradient boosting machines from scratch, aimed at helping developers understand the concepts of decision tree-based models in machine learning.
@@ -114,6 +114,9 @@ This project provides a basic implementation of a decision tree and tree-based e
 	- Missing Value Support: The implementation now supports handling missing values in the dataset, making the model more robust and applicable to real-world data.
 	- L2 Regularization: Introduced L2 regularization to reduce model complexity and prevent overfitting, enhancing generalization capabilities.
 
+  - **New in 0.3.4:**
+    - L1 Regularization: Introduced L1 regularization for Gradient Boosting binary classification to reduce model complexity, prevent overfitting and select features efficiently.
+
 ## Installation
 ### Prerequisites
 The project requires Python 3.6 or higher. To install the necessary dependencies, run the following command:
@@ -211,7 +214,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 Contributions are welcome! Please feel free to submit pull requests or open issues if you find bugs or have suggestions for improvements. Contributions could include code improvements, new features, or documentation enhancements.
 
 ## Version
-Current version: **0.3.3**
+Current version: **0.3.4**
 
 ## Author
 - **Zhoushus**

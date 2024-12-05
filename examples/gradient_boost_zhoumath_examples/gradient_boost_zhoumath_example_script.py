@@ -60,11 +60,12 @@ X_train = np.array(X_train)
 mask = np.random.uniform(size = X_train.shape) > 1
 X_train[mask] = np.nan
 learning_rate = 0.1
-num_base_trees = 1000
+num_base_trees = 10000
 ensemble_column_rate = 0.8
 ensemble_sample_rate = 0.8
 max_depth = 10
-lambda_l2 = 0
+lambda_l1 = 1
+lambda_l2 = 1
 split_criterion = 'entropy_gain'
 search_method = 'bfs'
 task = 'classification'
@@ -73,6 +74,7 @@ gradient_boost_model = GradientBoostZhoumath(learning_rate=learning_rate,
                                              ensemble_column_rate=ensemble_column_rate,
                                              ensemble_sample_rate=ensemble_sample_rate,
                                              task=task,
+                                             lambda_l1=lambda_l1,
                                              lambda_l2=lambda_l2,
                                              max_depth=max_depth,
                                              split_criterion=split_criterion,

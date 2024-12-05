@@ -24,9 +24,9 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # GradientBoost class
 class GradientBoostZhoumath(RandomForestZhoumath):
-    def __init__(self, learning_rate, lambda_l2, num_base_trees, ensemble_column_rate, ensemble_sample_rate, task, split_criterion,
-                 search_method, max_depth=None, pos_weight=1, random_column_rate=1,min_split_sample_rate=0,
-                 min_leaf_sample_rate=0, verbose_for_tree=False, verbose_for_ensemble = False):
+    def __init__(self, learning_rate, num_base_trees, ensemble_column_rate, ensemble_sample_rate, task, split_criterion,
+                 search_method, max_depth=None, pos_weight=1, random_column_rate=1, min_split_sample_rate=0, lambda_l1=0,
+                 lambda_l2=0, min_leaf_sample_rate=0, verbose_for_tree=False, verbose_for_ensemble = False):
         """
         Initialize the Gradient Boosting model, based on Random Forest.
         :param learning_rate: The learning rate (shrinkage) for the gradient boosting process.
@@ -50,6 +50,7 @@ class GradientBoostZhoumath(RandomForestZhoumath):
                          verbose_for_tree, verbose_for_ensemble)
         
         self.learning_rate = learning_rate
+        self.lambda_l1 = lambda_l1
         self.lambda_l2 = lambda_l2
      
     def fit(self, data, labels, val_data=None, val_labels=None, early_stop_rounds_for_tree=None,
@@ -223,6 +224,7 @@ class GradientBoostZhoumath(RandomForestZhoumath):
         current_decision_tree = DecisionTreeLoglossZhoumath(task=self.task,
                                                             split_criterion=self.split_criterion,
                                                             search_method=self.search_method,
+                                                            lambda_l1=self.lambda_l1,
                                                             lambda_l2=self.lambda_l2,
                                                             max_depth=self.max_depth,
                                                             pos_weight=self.pos_weight,
